@@ -8,15 +8,19 @@ on:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
 
 permissions:
   contents: read
@@ -51,7 +55,12 @@ jobs:
           uv run ruff check
           open_notebook/evidence
           open_notebook/domain/evidence.py
+          open_notebook/graphs/source.py
           tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
 
       - name: Run Evidence Core tests
-        run: uv run pytest tests/test_evidence_core.py
+        run: >-
+          uv run pytest
+          tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
