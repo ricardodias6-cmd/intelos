@@ -35,9 +35,9 @@ A persistência será preparada através das tabelas `document_version`, `eviden
 
 ## Processamento documental
 
-O Docling será o normalizador documental principal. O Chandra será utilizado apenas quando seja necessário OCR ou compreensão visual de um documento complexo, digitalizado ou manuscrito.
+O Docling será o normalizador documental principal. Quando estiver explicitamente selecionado e o runtime opcional estiver disponível, o Intelos executará uma única conversão que produz simultaneamente o Markdown usado pelo Open Notebook e os blocos de evidência com proveniência.
 
-Não será introduzido um segundo motor OCR nesta fase.
+O Chandra será utilizado apenas quando seja necessário OCR ou compreensão visual de um documento complexo, digitalizado ou manuscrito. Não será introduzido um segundo motor OCR nesta fase.
 
 ## Constituição de Resposta
 
@@ -48,6 +48,8 @@ As regras de estilo serão aplicadas na camada de resposta. As regras relativas 
 ## Consequências
 
 - O Evidence Core nasce integrado no Open Notebook, mas com fronteiras próprias para poder ser separado no futuro.
-- A primeira fase não inclui ainda extração completa por Docling ou Chandra, reranking semântico, visualização PDF ou inserção em DOCX.
-- A fundação será testada antes de ser ligada ao fluxo de chat e ingestão.
+- O fluxo de ingestão Docling fica ligado ao Evidence Core sem executar uma segunda conversão do documento.
+- O mecanismo anterior de `source_embedding` permanece temporariamente ativo por compatibilidade.
+- A integração do Chandra, o reranking semântico, a validação semântica, a visualização PDF e a inserção em DOCX ficam para fases posteriores.
+- O fluxo de chat ainda não está obrigado a devolver afirmações ligadas a Evidence IDs.
 - Qualquer estado denominado `verified` deve indicar se a verificação foi automática ou humana.
