@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timezone
 from typing import Any, ClassVar, Optional, Union
 
 from pydantic import ConfigDict, field_validator
@@ -24,16 +25,45 @@ from open_notebook.evidence.models import (
 from open_notebook.exceptions import InvalidInputError
 
 RecordReference = Union[str, RecordID]
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_STABLE_ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{2,127}$")
 
 
 def _record_to_string(value: RecordReference) -> str:
     return str(value)
 
 
-class DocumentVersionRecord(ObjectModel):
-    """One immutable extraction version of an Open Notebook source."""
+def _validate_sha256(value: str) -> str:
+    normalized = value.lower()
+    if not _SHA256_RE.fullmatch(normalized):
+        raise ValueError("hash must be a 64-character hexadecimal SHA-256 value")
+    return normalized
+
+
+def _validate_stable_id(value: str) -> str:
+    if not _STABLE_ID_RE.fullmatch(value):
+        raise ValueError(
+            "identifier must use upper-case letters, numbers, underscores or hyphens"
+        )
+    return value
+
+
+class EvidenceObjectModel(ObjectModel):
+    """ObjectModel variant that accepts SurrealDB RecordID values on reads."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def parse_record_id(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return str(value)
+
+
+class DocumentVersionRecord(EvidenceObjectModel):
+    """One immutable extraction version of an Open Notebook source."""
+
     table_name: ClassVar[str] = "document_version"
 
     source: RecordReference
@@ -49,6 +79,11 @@ class DocumentVersionRecord(ObjectModel):
         if not value:
             raise InvalidInputError("Document version source is required")
         return value
+
+    @field_validator("version_hash")
+    @classmethod
+    def validate_version_hash(cls, value: str) -> str:
+        return _validate_sha256(value)
 
     def _prepare_save_data(self) -> dict[str, Any]:
         data = super()._prepare_save_data()
@@ -66,10 +101,9 @@ class DocumentVersionRecord(ObjectModel):
         return [cls(**row) for row in rows]
 
 
-class EvidenceBlockRecord(ObjectModel):
+class EvidenceBlockRecord(EvidenceObjectModel):
     """Persistent evidence block tied to a source and document version."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     table_name: ClassVar[str] = "evidence_block"
 
     evidence_id: str
@@ -93,6 +127,16 @@ class EvidenceBlockRecord(ObjectModel):
         if not value:
             raise InvalidInputError("Evidence record references are required")
         return value
+
+    @field_validator("evidence_id")
+    @classmethod
+    def validate_evidence_id(cls, value: str) -> str:
+        return _validate_stable_id(value)
+
+    @field_validator("text_hash")
+    @classmethod
+    def validate_text_hash(cls, value: str) -> str:
+        return _validate_sha256(value)
 
     def _prepare_save_data(self) -> dict[str, Any]:
         data = super()._prepare_save_data()
@@ -118,7 +162,7 @@ class EvidenceBlockRecord(ObjectModel):
             extraction_method=self.extraction_method,
             verification_status=self.verification_status,
             text_hash=self.text_hash,
-            created_at=self.created or datetime.now(),
+            created_at=self.created or datetime.now(timezone.utc),
         )
 
     @classmethod
@@ -134,7 +178,7 @@ class EvidenceBlockRecord(ObjectModel):
         return [cls(**row) for row in rows]
 
 
-class ClaimRecord(ObjectModel):
+class ClaimRecord(EvidenceObjectModel):
     """Persistent atomic assertion produced or confirmed by Intelos."""
 
     table_name: ClassVar[str] = "claim"
@@ -151,6 +195,11 @@ class ClaimRecord(ObjectModel):
     freshness_status: FreshnessStatus = FreshnessStatus.UNKNOWN
     numeric_status: Optional[NumericStatus] = None
     render_as_definitive: bool = False
+
+    @field_validator("claim_id")
+    @classmethod
+    def validate_claim_id(cls, value: str) -> str:
+        return _validate_stable_id(value)
 
     def to_domain(self, *, evidence_ids: list[str]) -> Claim:
         as_of_date: date | None = self.as_of.date() if self.as_of else None
