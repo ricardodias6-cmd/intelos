@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from types import SimpleNamespace
 
 from open_notebook.evidence.docling_adapter import build_evidence_blocks
 
@@ -12,34 +13,14 @@ class Label(StrEnum):
     TEXT = "text"
 
 
-@dataclass
-class FakeBBox:
-    left: float
-    top: float
-    right: float
-    bottom: float
-
-    @property
-    def l(self):
-        return self.left
-
-    @property
-    def t(self):
-        return self.top
-
-    @property
-    def r(self):
-        return self.right
-
-    @property
-    def b(self):
-        return self.bottom
+def _bbox(*, left: float, top: float, right: float, bottom: float):
+    return SimpleNamespace(l=left, t=top, r=right, b=bottom)
 
 
 @dataclass
 class FakeProvenance:
     page_no: int
-    bbox: FakeBBox
+    bbox: object
     charspan: list[int]
 
 
@@ -80,9 +61,7 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=1,
-                            bbox=FakeBBox(
-                                left=10, top=20, right=500, bottom=60
-                            ),
+                            bbox=_bbox(left=10, top=20, right=500, bottom=60),
                             charspan=[0, 21],
                         )
                     ],
@@ -96,9 +75,7 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(
-                                left=20, top=80, right=220, bottom=110
-                            ),
+                            bbox=_bbox(left=20, top=80, right=220, bottom=110),
                             charspan=[0, 11],
                         )
                     ],
@@ -112,9 +89,7 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(
-                                left=20, top=120, right=500, bottom=180
-                            ),
+                            bbox=_bbox(left=20, top=120, right=500, bottom=180),
                             charspan=[0, 42],
                         )
                     ],
@@ -155,12 +130,12 @@ def test_provenance_charspan_splits_multi_page_text():
                     prov=[
                         FakeProvenance(
                             page_no=1,
-                            bbox=FakeBBox(left=1, top=1, right=100, bottom=20),
+                            bbox=_bbox(left=1, top=1, right=100, bottom=20),
                             charspan=[0, 18],
                         ),
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(left=1, top=1, right=100, bottom=20),
+                            bbox=_bbox(left=1, top=1, right=100, bottom=20),
                             charspan=[19, len(text)],
                         ),
                     ],
@@ -192,9 +167,7 @@ def test_table_markdown_is_used_when_item_has_no_text_attribute():
                     prov=[
                         FakeProvenance(
                             page_no=3,
-                            bbox=FakeBBox(
-                                left=20, top=200, right=520, bottom=400
-                            ),
+                            bbox=_bbox(left=20, top=200, right=520, bottom=400),
                             charspan=[0, 0],
                         )
                     ],
