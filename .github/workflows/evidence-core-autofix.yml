@@ -36,13 +36,14 @@ jobs:
         run: uv sync --frozen --group dev
 
       - name: Apply Ruff fixes
-        run: >-
-          uv run ruff check --fix
-          open_notebook/evidence
-          open_notebook/domain/evidence.py
-          open_notebook/graphs/source.py
-          tests/test_evidence_core.py
-          tests/test_docling_evidence_adapter.py
+        shell: bash
+        run: |
+          uv run ruff check --fix \
+            open_notebook/evidence \
+            open_notebook/domain/evidence.py \
+            open_notebook/graphs/source.py \
+            tests/test_evidence_core.py \
+            tests/test_docling_evidence_adapter.py || true
 
       - name: Commit fixes
         shell: bash
