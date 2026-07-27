@@ -35,7 +35,7 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --frozen --group dev
 
-      - name: Apply Ruff fixes
+      - name: Apply fixes and capture diagnostics
         shell: bash
         run: |
           uv run ruff check --fix \
@@ -43,9 +43,10 @@ jobs:
             open_notebook/domain/evidence.py \
             open_notebook/graphs/source.py \
             tests/test_evidence_core.py \
-            tests/test_docling_evidence_adapter.py || true
+            tests/test_docling_evidence_adapter.py \
+            > ../../ruff-diagnostics.txt 2>&1 || true
 
-      - name: Commit fixes
+      - name: Commit fixes and diagnostics
         shell: bash
         working-directory: .
         run: |
@@ -56,10 +57,7 @@ jobs:
                   services/knowledge-engine/open_notebook/domain/evidence.py \
                   services/knowledge-engine/open_notebook/graphs/source.py \
                   services/knowledge-engine/tests/test_evidence_core.py \
-                  services/knowledge-engine/tests/test_docling_evidence_adapter.py
-          if git diff --cached --quiet; then
-            echo 'No Ruff fixes to commit.'
-            exit 0
-          fi
-          git commit -m 'style: apply Ruff fixes to Docling Evidence Core'
+                  services/knowledge-engine/tests/test_docling_evidence_adapter.py \
+                  ruff-diagnostics.txt
+          git commit -m 'chore: capture Evidence Core lint diagnostics'
           git push origin HEAD:agent/evidence-core-foundation
