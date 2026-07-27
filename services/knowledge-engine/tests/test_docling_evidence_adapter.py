@@ -14,10 +14,26 @@ class Label(StrEnum):
 
 @dataclass
 class FakeBBox:
-    l: float
-    t: float
-    r: float
-    b: float
+    left: float
+    top: float
+    right: float
+    bottom: float
+
+    @property
+    def l(self):
+        return self.left
+
+    @property
+    def t(self):
+        return self.top
+
+    @property
+    def r(self):
+        return self.right
+
+    @property
+    def b(self):
+        return self.bottom
 
 
 @dataclass
@@ -64,7 +80,9 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=1,
-                            bbox=FakeBBox(l=10, t=20, r=500, b=60),
+                            bbox=FakeBBox(
+                                left=10, top=20, right=500, bottom=60
+                            ),
                             charspan=[0, 21],
                         )
                     ],
@@ -78,7 +96,9 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(l=20, t=80, r=220, b=110),
+                            bbox=FakeBBox(
+                                left=20, top=80, right=220, bottom=110
+                            ),
                             charspan=[0, 11],
                         )
                     ],
@@ -92,7 +112,9 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
                     prov=[
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(l=20, t=120, r=500, b=180),
+                            bbox=FakeBBox(
+                                left=20, top=120, right=500, bottom=180
+                            ),
                             charspan=[0, 42],
                         )
                     ],
@@ -133,12 +155,12 @@ def test_provenance_charspan_splits_multi_page_text():
                     prov=[
                         FakeProvenance(
                             page_no=1,
-                            bbox=FakeBBox(l=1, t=1, r=100, b=20),
+                            bbox=FakeBBox(left=1, top=1, right=100, bottom=20),
                             charspan=[0, 18],
                         ),
                         FakeProvenance(
                             page_no=2,
-                            bbox=FakeBBox(l=1, t=1, r=100, b=20),
+                            bbox=FakeBBox(left=1, top=1, right=100, bottom=20),
                             charspan=[19, len(text)],
                         ),
                     ],
@@ -170,7 +192,9 @@ def test_table_markdown_is_used_when_item_has_no_text_attribute():
                     prov=[
                         FakeProvenance(
                             page_no=3,
-                            bbox=FakeBBox(l=20, t=200, r=520, b=400),
+                            bbox=FakeBBox(
+                                left=20, top=200, right=520, bottom=400
+                            ),
                             charspan=[0, 0],
                         )
                     ],
