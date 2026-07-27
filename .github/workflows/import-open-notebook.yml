@@ -1,0 +1,97 @@
+name: Import Open Notebook snapshot
+
+on:
+  push:
+    branches:
+      - agent/import-open-notebook
+    paths:
+      - .github/workflows/import-open-notebook.yml
+      - SOURCE_MANIFEST.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-open-notebook
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Intelos branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/import-open-notebook
+          fetch-depth: 0
+
+      - name: Checkout pinned Open Notebook source
+        uses: actions/checkout@v4
+        with:
+          repository: lfnovo/open-notebook
+          ref: 62b071b9172a2c823ddd918e0947a782df63be13
+          path: .upstream/open-notebook
+          fetch-depth: 1
+
+      - name: Import source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf services/knowledge-engine
+          mkdir -p services/knowledge-engine
+
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='node_modules/' \
+            --exclude='surreal_data/' \
+            --exclude='notebook_data/' \
+            .upstream/open-notebook/ services/knowledge-engine/
+
+          cat > services/knowledge-engine/INTELOS_IMPORT.md <<'EOF'
+          # Open Notebook importado no Intelos
+
+          Este diretório contém uma cópia do código do projeto `lfnovo/open-notebook`, importada como componente inicial do motor de conhecimento do Intelos.
+
+          - Commit de origem: `62b071b9172a2c823ddd918e0947a782df63be13`
+          - Licença de origem: MIT
+          - Método: snapshot fixo, sem histórico Git incorporado
+          - Destino: `services/knowledge-engine/`
+          - Âmbito do Intelos: uso exclusivamente pessoal
+
+          A licença MIT do componente permanece aplicável ao código proveniente do Open Notebook. As alterações futuras devem ser registadas no manifesto de componentes e na documentação técnica do Intelos.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('SOURCE_MANIFEST.yml')
+          text = manifest.read_text(encoding='utf-8')
+          text = text.replace('status: prepared', 'status: imported')
+          manifest.write_text(text, encoding='utf-8')
+          PY
+
+          rm -rf .upstream
+
+      - name: Commit imported snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add services/knowledge-engine SOURCE_MANIFEST.yml
+
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+
+          git commit -m 'chore: import pinned Open Notebook source snapshot'
+          git push origin HEAD:agent/import-open-notebook
