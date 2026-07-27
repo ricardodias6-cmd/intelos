@@ -72,8 +72,33 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Capture production dependency audit
+        id: npm_audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high --json > npm-audit.json
+          audit_status=$?
+          echo "status=${audit_status}" >> "$GITHUB_OUTPUT"
+          node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('npm-audit.json','utf8')); console.log('npm audit summary:', data.metadata?.vulnerabilities ?? {});"
+          exit 0
+
+      - name: Upload production dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-production-audit
+          path: services/knowledge-engine/frontend/npm-audit.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce production dependency audit
+        shell: bash
+        run: |
+          if [ "${{ steps.npm_audit.outputs.status }}" -ne 0 ]; then
+            echo 'npm audit found a production vulnerability at or above the configured severity threshold.'
+            exit 1
+          fi
 
   configuration:
     runs-on: ubuntu-latest
