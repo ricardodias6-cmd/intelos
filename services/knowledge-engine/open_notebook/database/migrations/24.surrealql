@@ -1,0 +1,98 @@
+-- Migration 24: Intelos Evidence Core foundation
+
+DEFINE TABLE IF NOT EXISTS document_version SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS source ON TABLE document_version TYPE record<source>;
+DEFINE FIELD IF NOT EXISTS version_hash ON TABLE document_version TYPE string;
+DEFINE FIELD IF NOT EXISTS extraction_method ON TABLE document_version TYPE string;
+DEFINE FIELD IF NOT EXISTS page_count ON TABLE document_version TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS source_date ON TABLE document_version TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS metadata ON TABLE document_version FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS created ON document_version DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON document_version DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_document_version_source ON document_version FIELDS source;
+DEFINE INDEX IF NOT EXISTS idx_document_version_hash ON document_version FIELDS version_hash;
+DEFINE INDEX IF NOT EXISTS idx_document_version_unique ON document_version FIELDS source, version_hash UNIQUE;
+
+DEFINE TABLE IF NOT EXISTS evidence_block SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS evidence_id ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS source ON TABLE evidence_block TYPE record<source>;
+DEFINE FIELD IF NOT EXISTS document_version ON TABLE evidence_block TYPE record<document_version>;
+DEFINE FIELD IF NOT EXISTS raw_text ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS verified_text ON TABLE evidence_block TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS text_hash ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS pdf_page ON TABLE evidence_block TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS printed_page ON TABLE evidence_block TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS section_path ON TABLE evidence_block TYPE option<array<string>>;
+DEFINE FIELD IF NOT EXISTS bbox ON TABLE evidence_block FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS block_type ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS extraction_method ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS verification_status ON TABLE evidence_block TYPE string;
+DEFINE FIELD IF NOT EXISTS embedding ON TABLE evidence_block TYPE option<array<float>>;
+DEFINE FIELD IF NOT EXISTS created ON evidence_block DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON evidence_block DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_id ON evidence_block FIELDS evidence_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_evidence_source ON evidence_block FIELDS source;
+DEFINE INDEX IF NOT EXISTS idx_evidence_version ON evidence_block FIELDS document_version;
+DEFINE INDEX IF NOT EXISTS idx_evidence_page ON evidence_block FIELDS source, pdf_page;
+
+DEFINE ANALYZER IF NOT EXISTS intelos_evidence_analyzer
+TOKENIZERS blank,class,camel,punct
+FILTERS lowercase;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_raw_text
+ON TABLE evidence_block COLUMNS raw_text
+SEARCH ANALYZER intelos_evidence_analyzer BM25 HIGHLIGHTS;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_verified_text
+ON TABLE evidence_block COLUMNS verified_text
+SEARCH ANALYZER intelos_evidence_analyzer BM25 HIGHLIGHTS;
+
+DEFINE TABLE IF NOT EXISTS claim SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS claim_id ON TABLE claim TYPE string;
+DEFINE FIELD IF NOT EXISTS text ON TABLE claim TYPE string;
+DEFINE FIELD IF NOT EXISTS claim_kind ON TABLE claim TYPE string;
+DEFINE FIELD IF NOT EXISTS support_status ON TABLE claim TYPE string;
+DEFINE FIELD IF NOT EXISTS quoted_text ON TABLE claim TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS uncertainty_note ON TABLE claim TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS assumptions ON TABLE claim TYPE option<array<string>>;
+DEFINE FIELD IF NOT EXISTS time_sensitive ON TABLE claim TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS as_of ON TABLE claim TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS freshness_status ON TABLE claim TYPE string;
+DEFINE FIELD IF NOT EXISTS numeric_status ON TABLE claim TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS render_as_definitive ON TABLE claim TYPE bool DEFAULT false;
+DEFINE FIELD IF NOT EXISTS created ON claim DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON claim DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_claim_id ON claim FIELDS claim_id UNIQUE;
+
+DEFINE TABLE IF NOT EXISTS claim_evidence TYPE RELATION FROM claim TO evidence_block SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS relation_type ON TABLE claim_evidence TYPE string;
+DEFINE FIELD IF NOT EXISTS note ON TABLE claim_evidence TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS created ON claim_evidence DEFAULT time::now() VALUE $before OR time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_claim_evidence_claim ON claim_evidence FIELDS in;
+DEFINE INDEX IF NOT EXISTS idx_claim_evidence_block ON claim_evidence FIELDS out;
+
+DEFINE EVENT IF NOT EXISTS intelos_source_evidence_delete
+ON TABLE source
+WHEN ($after == NONE)
+THEN {
+    DELETE evidence_block WHERE source == $before.id;
+    DELETE document_version WHERE source == $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS intelos_evidence_relation_delete
+ON TABLE evidence_block
+WHEN ($after == NONE)
+THEN {
+    DELETE claim_evidence WHERE out == $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS intelos_claim_relation_delete
+ON TABLE claim
+WHEN ($after == NONE)
+THEN {
+    DELETE claim_evidence WHERE in == $before.id;
+};
