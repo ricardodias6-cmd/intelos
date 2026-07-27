@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _STABLE_ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{2,127}$")
+_SOURCE_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_:-]{1,127}$")
 
 
 class ExtractionMethod(StrEnum):
@@ -106,13 +107,20 @@ class EvidenceBlock(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
-    @field_validator("evidence_id", "source_id")
+    @field_validator("evidence_id")
     @classmethod
-    def validate_stable_id(cls, value: str) -> str:
+    def validate_evidence_id(cls, value: str) -> str:
         if not _STABLE_ID_RE.fullmatch(value):
             raise ValueError(
                 "identifier must use upper-case letters, numbers, underscores or hyphens"
             )
+        return value
+
+    @field_validator("source_id")
+    @classmethod
+    def validate_source_id(cls, value: str) -> str:
+        if not _SOURCE_ID_RE.fullmatch(value):
+            raise ValueError("source_id is not a valid source or record identifier")
         return value
 
     @field_validator("document_version_hash", "text_hash")
