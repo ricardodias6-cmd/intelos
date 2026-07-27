@@ -12,5 +12,5 @@ components:
     license_file: LICENSES/open-notebook-MIT.txt
     destination: services/knowledge-engine
     import_method: pinned_source_snapshot
-    status: prepared
+    status: imported
     modifications: []
