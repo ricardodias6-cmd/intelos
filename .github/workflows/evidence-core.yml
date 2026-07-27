@@ -1,0 +1,57 @@
+name: Evidence Core
+
+on:
+  push:
+    branches:
+      - agent/evidence-core-foundation
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+  pull_request:
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Lint Evidence Core
+        run: >-
+          uv run ruff check
+          open_notebook/evidence
+          open_notebook/domain/evidence.py
+          tests/test_evidence_core.py
+
+      - name: Run Evidence Core tests
+        run: uv run pytest tests/test_evidence_core.py
