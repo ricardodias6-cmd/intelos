@@ -43,10 +43,35 @@ jobs:
       - name: Run backend tests
         run: uv run pytest -q
 
-      - name: Audit Python dependencies
+      - name: Capture Python dependency audit
+        id: pip_audit
+        continue-on-error: true
         uses: pypa/gh-action-pip-audit@v1.1.0
         with:
           virtual-environment: services/knowledge-engine/.venv/
+
+      - name: Decode Python dependency audit
+        if: always()
+        shell: bash
+        run: |
+          printf '%s' '${{ steps.pip_audit.outputs.internal-be-careful-output }}' \
+            | base64 --decode > pip-audit.txt
+
+      - name: Upload Python dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dependency-audit
+          path: services/knowledge-engine/pip-audit.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Python dependency audit
+        if: steps.pip_audit.outcome == 'failure'
+        shell: bash
+        run: |
+          echo 'pip-audit found a known vulnerability in the installed Python environment.'
+          exit 1
 
   frontend:
     runs-on: ubuntu-latest
