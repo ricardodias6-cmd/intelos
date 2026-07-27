@@ -1,0 +1,12 @@
+E741 Ambiguous variable name: `l`
+  --> tests/test_docling_evidence_adapter.py:17:5
+   |
+15 | @dataclass
+16 | class FakeBBox:
+17 |     l: float
+   |     ^
+18 |     t: float
+19 |     r: float
+   |
+
+Found 1 error.
