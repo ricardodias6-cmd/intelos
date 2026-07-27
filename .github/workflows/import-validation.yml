@@ -43,6 +43,11 @@ jobs:
       - name: Run backend tests
         run: uv run pytest -q
 
+      - name: Audit Python dependencies
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          virtual-environment: services/knowledge-engine/.venv/
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
