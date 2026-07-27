@@ -9,6 +9,10 @@ on:
       - .github/workflows/import-validation.yml
       - services/knowledge-engine/**
 
+concurrency:
+  group: import-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
