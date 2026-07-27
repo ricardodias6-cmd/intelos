@@ -14,6 +14,12 @@ from open_notebook.ai.models import Model, ModelManager
 from open_notebook.domain.content_settings import ContentSettings
 from open_notebook.domain.notebook import Asset, Source
 from open_notebook.domain.transformation import Transformation
+from open_notebook.evidence.docling_adapter import (
+    DoclingRuntimeUnavailable,
+    StructuredDocumentExtraction,
+    extract_with_docling_evidence,
+)
+from open_notebook.evidence.ingestion import persist_structured_extraction
 from open_notebook.graphs.transformation import graph as transform_graph
 from open_notebook.utils.runtime_capabilities import engine_runtime_missing
 
@@ -38,6 +44,9 @@ class SourceState(TypedDict):
     content_state: Dict[str, Any]
     # Result of content-core extraction (does NOT echo url/file_path back).
     extraction: ExtractionOutput
+    # Structured result produced when Intelos runs Docling directly. It is
+    # optional because URL, text and non-Docling paths retain existing behavior.
+    evidence_extraction: Optional[StructuredDocumentExtraction]
     apply_transformations: List[Transformation]
     source_id: str
     notebook_ids: List[str]
@@ -143,12 +152,58 @@ async def content_process(state: SourceState) -> dict:
         f"docling_vision={config_kwargs.get('docling_vision', 'auto')})"
     )
 
-    processed = await extract_content(
-        url=content_state.get("url"),
-        file_path=content_state.get("file_path"),
-        content=content_state.get("content"),
-        config=config,
+    evidence_extraction: Optional[StructuredDocumentExtraction] = None
+
+    # When Docling is explicitly selected, Intelos performs the conversion
+    # directly so the same pass yields both Markdown and provenance-rich blocks.
+    # Sending the file through content-core first would discard page and bbox
+    # metadata and require a wasteful second conversion.
+    use_intelos_docling = (
+        target == "document"
+        and config_kwargs.get("document_engine") == "docling"
+        and bool(content_state.get("file_path"))
     )
+
+    if use_intelos_docling:
+        try:
+            evidence_extraction = await extract_with_docling_evidence(
+                file_path=str(content_state["file_path"]),
+                source_id=state["source_id"],
+                do_ocr=bool(config_kwargs.get("docling_ocr", False)),
+                do_formulas=bool(config_kwargs.get("docling_formulas", False)),
+                do_vision=bool(config_kwargs.get("docling_vision", False)),
+            )
+            processed = ExtractionOutput(
+                content=evidence_extraction.content,
+                title=evidence_extraction.title,
+                source_type="file",
+                identified_type=evidence_extraction.identified_type,
+                metadata=evidence_extraction.metadata,
+            )
+        except DoclingRuntimeUnavailable as exc:
+            # Runtime capability checks should normally prevent this branch. The
+            # fallback keeps ingestion available if installation failed after
+            # configuration was persisted.
+            logger.warning(
+                f"Intelos Docling runtime unavailable ({exc}); falling back to "
+                "content-core auto extraction without evidence coordinates."
+            )
+            fallback_kwargs = dict(config_kwargs)
+            fallback_kwargs["document_engine"] = "auto"
+            fallback_config = ContentCoreConfig(**fallback_kwargs)
+            processed = await extract_content(
+                url=content_state.get("url"),
+                file_path=content_state.get("file_path"),
+                content=content_state.get("content"),
+                config=fallback_config,
+            )
+    else:
+        processed = await extract_content(
+            url=content_state.get("url"),
+            file_path=content_state.get("file_path"),
+            content=content_state.get("content"),
+            config=config,
+        )
 
     # content-core signals a soft extraction failure (e.g. an unreachable or
     # invalid URL, via the bs4 fallback) by returning title="Error" and content
@@ -190,7 +245,10 @@ async def content_process(state: SourceState) -> dict:
         except Exception as e:
             logger.warning(f"Failed to delete source file {file_path}: {e}")
 
-    return {"extraction": processed}
+    return {
+        "extraction": processed,
+        "evidence_extraction": evidence_extraction,
+    }
 
 
 async def save_source(state: SourceState) -> dict:
@@ -214,6 +272,19 @@ async def save_source(state: SourceState) -> dict:
         source.title = extraction.title
 
     await source.save()
+
+    evidence_extraction = state.get("evidence_extraction")
+    if evidence_extraction:
+        ingestion_result = await persist_structured_extraction(
+            source_id=str(source.id),
+            extraction=evidence_extraction,
+        )
+        logger.info(
+            f"Evidence ingestion completed for {source.id}: "
+            f"version={ingestion_result.document_version_id}, "
+            f"created_blocks={ingestion_result.created_blocks}, "
+            f"existing_blocks={ingestion_result.existing_blocks}"
+        )
 
     # NOTE: Notebook associations are created by the API immediately for UI responsiveness
     # No need to create them here to avoid duplicate edges
