@@ -9,7 +9,6 @@ parsing prose.
 from dataclasses import dataclass
 from enum import StrEnum
 
-
 CONSTITUTION_VERSION = "1.0"
 DEFAULT_LOCALE = "pt-PT"
 
