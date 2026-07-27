@@ -1,0 +1,111 @@
+name: Import validation
+
+on:
+  push:
+    branches:
+      - agent/import-validation
+  pull_request:
+    paths:
+      - .github/workflows/import-validation.yml
+      - services/knowledge-engine/**
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Lint backend
+        run: uv run ruff check api commands open_notebook tests run_api.py
+
+      - name: Run backend tests
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/knowledge-engine/frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  configuration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Docker Compose
+        env:
+          OPEN_NOTEBOOK_ENCRYPTION_KEY: validation-only-secret
+          OPEN_NOTEBOOK_PASSWORD: validation-only-password
+          SURREAL_USER: validation-user
+          SURREAL_PASSWORD: validation-password
+        run: docker compose config --quiet
+
+      - name: Reject unsafe deployment defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'OPEN_NOTEBOOK_ENCRYPTION_KEY=change-me-to-a-secret-string' docker-compose.yml; then
+            echo 'Unsafe public encryption key found in docker-compose.yml.'
+            exit 1
+          fi
+          if grep -q 'image: lfnovo/open_notebook:v1-latest' docker-compose.yml; then
+            echo 'Compose uses an external mutable image instead of the Intelos build.'
+            exit 1
+          fi
+          if grep -Eq '^\s+- "(8502|5055):(8502|5055)"' docker-compose.yml; then
+            echo 'Application ports are exposed on all host interfaces.'
+            exit 1
+          fi
