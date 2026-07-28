@@ -54,28 +54,18 @@ jobs:
           path.write_text(text.replace(old, new, 1))
           PY
           uv lock \
-            --upgrade-package click \
-            --upgrade-package lxml-html-clean \
-            --upgrade-package pyasn1
+            --upgrade-package 'click==8.3.3' \
+            --upgrade-package 'lxml-html-clean==0.4.5' \
+            --upgrade-package 'pyasn1==0.6.4'
 
       - name: Apply minimum npm security updates
         working-directory: services/knowledge-engine/frontend
         run: |
-          npm pkg set 'dependencies.next=^16.2.11'
+          npm install --package-lock-only --ignore-scripts next@16.2.11
           npm pkg set 'overrides.postcss=8.5.18'
+          npm pkg set 'overrides.sharp=0.35.0'
           npm install --package-lock-only --ignore-scripts
-
-          set +e
-          npm audit --omit=dev --json > npm-audit-after-primary.json
-          audit_status=$?
-          set -e
-
-          if jq -e '.vulnerabilities.sharp' npm-audit-after-primary.json >/dev/null; then
-            npm pkg set 'overrides.sharp=0.35.0'
-            npm install --package-lock-only --ignore-scripts
-          fi
-
-          npm audit --omit=dev --json > npm-audit-final.json || true
+          npm audit --omit=dev --json > npm-audit-final.json
 
       - name: Capture targeted diff
         run: |
@@ -97,7 +87,6 @@ jobs:
             services/knowledge-engine/uv.lock
             services/knowledge-engine/frontend/package.json
             services/knowledge-engine/frontend/package-lock.json
-            services/knowledge-engine/frontend/npm-audit-after-primary.json
             services/knowledge-engine/frontend/npm-audit-final.json
             targeted-dependency-refresh.diff
             targeted-dependency-refresh.stat
