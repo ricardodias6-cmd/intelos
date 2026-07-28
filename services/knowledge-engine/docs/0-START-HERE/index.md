@@ -1,65 +1,51 @@
-# Open Notebook - Start Here
+# Intelos Knowledge Engine: Start Here
 
-**Open Notebook** is a privacy-focused AI research assistant. Upload documents, chat with AI, generate notes, and create podcasts—all with complete control over your data.
+The Knowledge Engine is based on an imported Open Notebook snapshot, but Intelos uses its own hardened local deployment configuration.
 
-## Choose Your Path
+## Supported path
 
-### 🚀 I want to use OpenAI (Fastest)
-**5 minutes to running.** GPT, simple setup, powerful results.
+The validated route is the checked-in Docker Compose stack in `services/knowledge-engine`.
 
-→ [OpenAI Quick Start](quick-start-openai.md)
+Start with:
 
----
+1. [Docker Compose installation](../1-INSTALLATION/docker-compose.md)
+2. [Environment reference](../5-CONFIGURATION/environment-reference.md)
+3. [Security configuration](../5-CONFIGURATION/security.md)
+4. [Residual risks](../../../../docs/security/knowledge-engine-residual-risks.md)
 
-### ☁️ I want to use other cloud AI (Anthropic, Google, OpenRouter, etc.)
-**5 minutes to running.** Choose from 17+ AI providers.
+The current scope is local, single-user, personal and development use. It is not approved for public internet exposure or production deployment.
 
-→ [Cloud Providers Quick Start](quick-start-cloud.md)
+## Choose an AI provider
 
----
+Install the base stack first, then follow one of these provider-specific guides:
 
-### 🏠 I want to run locally (Ollama or LMStudio, completely private)
-**5 minutes to running.** Keep everything private, on your machine. No costs.
+- [OpenAI](quick-start-openai.md)
+- [Other cloud providers](quick-start-cloud.md)
+- [Local Ollama](quick-start-local.md)
+- [Ollama already installed on the host](quick-start-external-ollama.md)
 
-→ [Local Quick Start](quick-start-local.md)
+These pages no longer provide independent Docker Compose files. They build on the canonical Intelos configuration so that authentication, local port bindings and mandatory secrets remain consistent.
 
-**Already have Ollama installed?** → [External Ollama Guide](quick-start-external-ollama.md)
+## What the service provides
 
----
+- notebooks, sources and notes;
+- document and URL ingestion;
+- full-text and vector search;
+- contextual chat and transformations;
+- optional podcast generation;
+- support for cloud and local AI providers.
 
-## What Can You Do?
+Some optional processing runtimes, external providers and large-content flows were not covered by the validated smoke test. Consult the residual-risk record before relying on them.
 
-- 📄 **Upload Content**: PDFs, web links, audio, video, text
-- 🤖 **Chat with AI**: Ask questions about your documents with citations
-- 📝 **Generate Notes**: AI creates summaries and insights
-- 🎙️ **Create Podcasts**: Turn research into professional audio content
-- 🔍 **Search**: Full-text and semantic search across all content
-- ⚙️ **Transform**: Extract insights, analyze themes, create summaries
+## Required local controls
 
-## Why Open Notebook?
+Before starting:
 
-| Feature | Open Notebook | Notebook LM |
-|---------|---|---|
-| **Privacy** | Self-hosted, your control | Cloud, Google's servers |
-| **AI Choice** | 17+ providers | Google's models only |
-| **Podcast Speakers** | 1-4 customizable | 2 only |
-| **Cost** | Completely free | Free (but your data) |
-| **Offline** | Yes  | No |
+- copy `.env.example` to `.env`;
+- define a long random encryption key;
+- define a long random application password;
+- define non-empty SurrealDB credentials;
+- keep all published ports bound to `127.0.0.1`;
+- build the application from this repository.
 
-## Prerequisites
-
-- **Docker**: All paths use Docker (free)
-- **AI Provider**: Either a cloud API key OR use free local models (Ollama)
-
----
-
-## Next Steps
-
-1. Pick your path above ⬆️
-2. Follow the 5-minute quick start
-3. Create your first notebook
-4. Start uploading documents!
-
----
-
-**Need Help?** Join our [Discord community](https://discord.gg/37XJPXfz2w) or see [Full Documentation](../index.md).
+Do not copy upstream deployment examples that use default credentials, public port bindings or `lfnovo/open_notebook:*` images.

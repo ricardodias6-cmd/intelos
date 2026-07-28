@@ -1,563 +1,140 @@
 # Advanced Configuration
 
-Performance tuning, debugging, and advanced features.
+Advanced settings must preserve the local and fail-closed security posture of the canonical Intelos deployment.
 
----
+## Worker concurrency
 
-## Performance Tuning
+The worker defaults to five concurrent tasks.
 
-### Concurrency Control
+For constrained hardware or local model servers:
 
-```env
-# Max concurrent database operations (default: 5)
-# Increase: Faster processing, more conflicts
-# Decrease: Slower, fewer conflicts
-SURREAL_COMMANDS_MAX_TASKS=5
+```dotenv
+OPEN_NOTEBOOK_WORKER_MAX_TASKS=1
 ```
 
-**Guidelines:**
-- CPU: 2 cores → 2-3 tasks
-- CPU: 4 cores → 5 tasks (default)
-- CPU: 8+ cores → 10-20 tasks
+Increase concurrency only after observing memory, CPU, model-server limits and database behaviour under representative workloads.
 
-Higher concurrency = more throughput but more database conflicts (retries handle this).
+## Embedding batches
 
-### Retry Strategy
-
-```env
-# How to wait between retries
-SURREAL_COMMANDS_RETRY_WAIT_STRATEGY=exponential_jitter
-
-# Options:
-# - exponential_jitter (recommended)
-# - exponential
-# - fixed
-# - random
+```dotenv
+OPEN_NOTEBOOK_EMBEDDING_BATCH_SIZE=50
+OPEN_NOTEBOOK_MIN_CHUNK_SIZE=5
 ```
 
-For high-concurrency deployments, use `exponential_jitter` to prevent thundering herd.
+Reduce the batch size when a local or strict provider cannot handle the default request size.
 
-### Timeout Tuning
+## Timeouts
 
-```env
-# Client timeout (default: 300 seconds)
+```dotenv
 API_CLIENT_TIMEOUT=300
-
-# LLM timeout (default: 60 seconds)
 ESPERANTO_LLM_TIMEOUT=60
+ESPERANTO_TTS_TIMEOUT=300
 ```
 
-**Guideline:** Set `API_CLIENT_TIMEOUT` > `ESPERANTO_LLM_TIMEOUT` + buffer
+Set the client timeout higher than the longest expected provider operation. Increasing a timeout does not resolve provider rate limits, stalled workers or unavailable services.
 
-```
-Example:
-  ESPERANTO_LLM_TIMEOUT=120
-  API_CLIENT_TIMEOUT=180  # 120 + 60 second buffer
-```
+## TTS concurrency
 
----
-
-## Batching
-
-### TTS Batch Size
-
-For podcast generation, control concurrent TTS requests:
-
-```env
-# Default: 5
-TTS_BATCH_SIZE=2
+```dotenv
+TTS_BATCH_SIZE=5
 ```
 
-**Providers and recommendations:**
-- OpenAI: 5 (can handle many concurrent)
-- Google: 4 (good concurrency)
-- ElevenLabs: 2 (limited concurrent requests)
-- Local TTS: 1 (single-threaded)
+Lower the value for local or rate-limited providers.
 
-Lower = slower but more stable. Higher = faster but more load on provider.
+## Ports
 
----
+Canonical host bindings:
 
-## Logging & Debugging
+- Web UI: `127.0.0.1:8502`
+- API: `127.0.0.1:5055`
+- SurrealDB: `127.0.0.1:8000`
 
-### Enable Detailed Logging
-
-```bash
-# Start with debug logging
-RUST_LOG=debug  # For Rust components
-LOGLEVEL=DEBUG  # For Python components
-```
-
-### Debug Specific Components
-
-```bash
-# Only surreal operations
-RUST_LOG=surrealdb=debug
-
-# Only langchain
-LOGLEVEL=langchain:debug
-
-# Only specific module
-RUST_LOG=open_notebook::database=debug
-```
-
-### LangSmith Tracing
-
-For debugging LLM workflows:
-
-```env
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
-LANGCHAIN_API_KEY=your-key
-LANGCHAIN_PROJECT="Open Notebook"
-```
-
-Then visit https://smith.langchain.com to see traces.
-
----
-
-## Port Configuration
-
-### Default Ports
-
-```
-Frontend: 8502 (Docker deployment)
-Frontend: 3000 (Development from source)
-API: 5055
-SurrealDB: 8000
-```
-
-### Changing Frontend Port
-
-Edit `docker-compose.yml`:
+When changing a host port, preserve the localhost address:
 
 ```yaml
-services:
-  open-notebook:
-    ports:
-      - "8001:8502"  # Change from 8502 to 8001
+ports:
+  - "127.0.0.1:8503:8502"
 ```
 
-Access at: `http://localhost:8001`
+Do not shorten this to `8503:8502`, because that may publish the service on every host interface.
 
-API auto-detects to: `http://localhost:5055` ✓
+Changing the host-side SurrealDB port does not change the internal Compose address. The application should normally continue using:
 
-### Changing API Port
-
-```yaml
-services:
-  open-notebook:
-    ports:
-      - "127.0.0.1:8502:8502"  # Frontend
-      - "5056:5055"            # Change API from 5055 to 5056
-    environment:
-      - API_URL=http://localhost:5056  # Update API_URL
+```dotenv
+SURREAL_URL=ws://surrealdb:8000/rpc
 ```
 
-Access API directly: `http://localhost:5056/docs`
+## CORS
 
-**Note:** When changing API port, you must set `API_URL` explicitly since auto-detection assumes port 5055.
+Canonical local origins:
 
-### Changing SurrealDB Port
-
-```yaml
-services:
-  surrealdb:
-    ports:
-      - "127.0.0.1:8001:8000"  # Change from 8000 to 8001 (localhost only)
-    environment:
-      - SURREAL_URL=ws://surrealdb:8001/rpc  # Update connection URL
+```dotenv
+CORS_ORIGINS=http://127.0.0.1:8502,http://localhost:8502
 ```
 
-**Important:** Internal Docker network uses container name (`surrealdb`), not `localhost`.
+Add another local origin only when the frontend is deliberately moved to another local port. Do not use a wildcard as a troubleshooting shortcut.
 
----
+## TLS verification
 
-## SSL/TLS Configuration
-
-### Custom CA Certificate
-
-For self-signed certs on local providers:
-
-```env
-ESPERANTO_SSL_CA_BUNDLE=/path/to/ca-bundle.pem
+```dotenv
+ESPERANTO_SSL_VERIFY=true
 ```
 
-### Disable Verification (Development Only)
+Use `ESPERANTO_SSL_CA_BUNDLE` for an approved private certificate authority. Disabling verification should be temporary, isolated and documented.
 
-```env
-# WARNING: Only for testing/development
-# Vulnerable to MITM attacks
-ESPERANTO_SSL_VERIFY=false
+## Proxy configuration
+
+Standard variables are supported:
+
+```dotenv
+HTTP_PROXY=http://proxy.example:8080
+HTTPS_PROXY=http://proxy.example:8080
+NO_PROXY=localhost,127.0.0.1,surrealdb,host.docker.internal
 ```
 
----
+A proxy may receive provider traffic and metadata. Review its trust, logging and credential-handling policy.
 
-## Multi-Provider Setup
+## Tracing
 
-### Use Different Providers for Different Tasks
+LangSmith tracing can transmit prompts, responses and execution metadata to an external service.
 
-Configure multiple AI providers via **Settings → API Keys**. Each provider gets its own credential:
+Leave it disabled unless deliberately needed:
 
-1. Add a credential for your main language model provider (e.g., OpenAI, Anthropic)
-2. Add a credential for embeddings (e.g., Voyage AI, or use the same provider)
-3. Add a credential for TTS (e.g., ElevenLabs, or OpenAI-Compatible for local Speaches)
-4. Each credential's models are registered and available independently
-
-### Multiple Endpoints for OpenAI-Compatible
-
-When using OpenAI-Compatible providers, you can configure per-service URLs in a single credential:
-
-1. Go to **Settings** → **API Keys**
-2. Click **Add Credential** → Select **OpenAI-Compatible**
-3. Configure separate URLs for LLM, Embedding, TTS, and STT
-4. Click **Save**, then **Test Connection**
-
----
-
-## Security Hardening
-
-### Change Default Credentials
-
-```env
-# Don't use defaults in production
-SURREAL_USER=your_secure_username
-SURREAL_PASSWORD=$(openssl rand -base64 32)  # Generate secure password
+```dotenv
+LANGCHAIN_TRACING_V2=false
 ```
 
-### Add Password Protection
+Do not enable tracing for sensitive content without an explicit data-handling review.
 
-```env
-# Protect your Open Notebook instance
-OPEN_NOTEBOOK_PASSWORD=your_secure_password
+## Optional extraction runtimes
+
+```dotenv
+OPEN_NOTEBOOK_ENABLE_DOCLING=false
+OPEN_NOTEBOOK_ENABLE_CRAWL4AI=false
 ```
 
-### Use HTTPS
+Enabling either runtime downloads additional packages, models or browsers during startup. These paths were not covered by the current smoke test.
 
-```env
-# Always use HTTPS in production
-API_URL=https://mynotebook.example.com
-```
+## Debug logging
 
-### Firewall Rules
+Verbose logs may include document names, provider errors, URLs or other operational data. Use debug logging only for the minimum time required and review logs before sharing them.
 
-Restrict access to your Open Notebook:
-- Port 8502 (frontend): Only from your IP
-- Port 5055 (API): Only from frontend
-- Port 8000 (SurrealDB): Never expose to internet
+## Unsupported tuning assumptions
 
----
+The Intelos documentation does not treat the following as supported advanced configuration:
 
-## Web Scraping & Content Extraction
+- remote server exposure;
+- public reverse proxies;
+- multi-user scaling;
+- shared SurrealDB tenancy;
+- production resource sizing;
+- copied upstream Compose examples;
+- mutable external application images.
 
-Open Notebook uses multiple engines for content extraction. Which one runs is chosen in **Settings → Content Processing** (see the user-guide page on [Content Processing Engines](../3-USER-GUIDE/content-processing-engines.md)); the variables below configure them.
+Those scenarios require separate design, security and operational validation.
 
-### Firecrawl
+See:
 
-For advanced web scraping:
-
-```env
-FIRECRAWL_API_KEY=your-key
-
-# Optional: self-hosted Firecrawl instance
-FIRECRAWL_API_URL=https://firecrawl.internal.example.com
-
-# Optional: bypass anti-bot protection (basic | stealth | auto)
-CCORE_FIRECRAWL_PROXY=auto
-
-# Optional: ms to wait for JavaScript to render (default 3000)
-CCORE_FIRECRAWL_WAIT_FOR=3000
-```
-
-Get key from: https://firecrawl.dev/
-
-### Jina AI
-
-Alternative web extraction:
-
-```env
-JINA_API_KEY=your-key
-```
-
-Get key from: https://jina.ai/
-
-### Crawl4AI
-
-Renders JavaScript pages in a local Chromium browser — no API key required. Crawl4AI is **optional**: enable it with `OPEN_NOTEBOOK_ENABLE_CRAWL4AI=true` and it installs on first startup (the Chromium download is cached on your data volume). To offload rendering to a remote Crawl4AI server instead — no local install needed:
-
-```env
-CRAWL4AI_API_URL=http://crawl4ai.example.com:11235
-```
-
-See [Content Processing Engines → Optional engines](../3-USER-GUIDE/content-processing-engines.md#optional-engines-docling--crawl4ai) for details.
-
----
-
-## Environment Variable Groups
-
-### Credential Storage (Required)
-```env
-OPEN_NOTEBOOK_ENCRYPTION_KEY    # Required for storing credentials
-```
-
-AI provider API keys are configured via **Settings → API Keys** (not environment variables).
-
-### Database
-```env
-SURREAL_URL
-SURREAL_USER
-SURREAL_PASSWORD
-SURREAL_NAMESPACE
-SURREAL_DATABASE
-```
-
-### Performance
-```env
-SURREAL_COMMANDS_MAX_TASKS
-SURREAL_COMMANDS_RETRY_ENABLED
-SURREAL_COMMANDS_RETRY_MAX_ATTEMPTS
-SURREAL_COMMANDS_RETRY_WAIT_STRATEGY
-SURREAL_COMMANDS_RETRY_WAIT_MIN
-SURREAL_COMMANDS_RETRY_WAIT_MAX
-```
-
-### API Settings
-```env
-API_URL
-INTERNAL_API_URL
-API_CLIENT_TIMEOUT
-ESPERANTO_LLM_TIMEOUT
-```
-
-### Audio/TTS
-```env
-TTS_BATCH_SIZE
-```
-
-> **Note:** `ELEVENLABS_API_KEY` is deprecated. Configure ElevenLabs via **Settings → API Keys**.
-
-### Debugging
-```env
-LANGCHAIN_TRACING_V2
-LANGCHAIN_ENDPOINT
-LANGCHAIN_API_KEY
-LANGCHAIN_PROJECT
-```
-
----
-
-## Testing Configuration
-
-### Quick Test
-
-```bash
-# Test API health
-curl http://localhost:5055/health
-
-# Test with sample (requires configured credential and registered models)
-curl -X POST http://localhost:5055/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Hello"}'
-```
-
-### Validate Config
-
-```bash
-# Check environment variables are set
-env | grep OPEN_NOTEBOOK_ENCRYPTION_KEY
-
-# Verify database connection
-python -c "import os; print(os.getenv('SURREAL_URL'))"
-```
-
----
-
-## Troubleshooting Performance
-
-### High Memory Usage
-
-```env
-# Reduce concurrency
-SURREAL_COMMANDS_MAX_TASKS=2
-
-# Reduce TTS batch size
-TTS_BATCH_SIZE=1
-```
-
-### High CPU Usage
-
-```env
-# Check worker count
-SURREAL_COMMANDS_MAX_TASKS
-
-# Reduce if maxed out:
-SURREAL_COMMANDS_MAX_TASKS=5
-```
-
-### Slow Responses
-
-```env
-# Check timeout settings
-API_CLIENT_TIMEOUT=300
-
-# Check retry config
-SURREAL_COMMANDS_RETRY_MAX_ATTEMPTS=3
-```
-
-### Database Conflicts
-
-```env
-# Reduce concurrency
-SURREAL_COMMANDS_MAX_TASKS=3
-
-# Use jitter strategy
-SURREAL_COMMANDS_RETRY_WAIT_STRATEGY=exponential_jitter
-```
-
----
-
-## Backup & Restore
-
-### Data Locations
-
-| Path | Contents |
-|------|----------|
-| `./data` or `/app/data` | Uploads, podcasts, checkpoints |
-| `./surreal_data` or `/mydata` | SurrealDB database files |
-
-### Quick Backup
-
-```bash
-# Stop services (recommended for consistency)
-docker compose down
-
-# Create timestamped backup
-tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz \
-  notebook_data/ surreal_data/
-
-# Restart services
-docker compose up -d
-```
-
-### Automated Backup Script
-
-```bash
-#!/bin/bash
-# backup.sh - Run daily via cron
-
-BACKUP_DIR="/path/to/backups"
-DATE=$(date +%Y%m%d-%H%M%S)
-
-# Create backup
-tar -czf "$BACKUP_DIR/open-notebook-$DATE.tar.gz" \
-  /path/to/notebook_data \
-  /path/to/surreal_data
-
-# Keep only last 7 days
-find "$BACKUP_DIR" -name "open-notebook-*.tar.gz" -mtime +7 -delete
-
-echo "Backup complete: open-notebook-$DATE.tar.gz"
-```
-
-Add to cron:
-```bash
-# Daily backup at 2 AM
-0 2 * * * /path/to/backup.sh >> /var/log/open-notebook-backup.log 2>&1
-```
-
-### Restore
-
-```bash
-# Stop services
-docker compose down
-
-# Remove old data (careful!)
-rm -rf notebook_data/ surreal_data/
-
-# Extract backup
-tar -xzf backup-20240115-120000.tar.gz
-
-# Restart services
-docker compose up -d
-```
-
-### Migration Between Servers
-
-```bash
-# On source server
-docker compose down
-tar -czf open-notebook-migration.tar.gz notebook_data/ surreal_data/
-
-# Transfer to new server
-scp open-notebook-migration.tar.gz user@newserver:/path/
-
-# On new server
-tar -xzf open-notebook-migration.tar.gz
-docker compose up -d
-```
-
----
-
-## Container Management
-
-### Common Commands
-
-```bash
-# Start services
-docker compose up -d
-
-# Stop services
-docker compose down
-
-# View logs (all services)
-docker compose logs -f
-
-# View logs (specific service)
-docker compose logs -f api
-
-# Restart specific service
-docker compose restart api
-
-# Update to latest version
-docker compose down
-docker compose pull
-docker compose up -d
-
-# Check resource usage
-docker stats
-
-# Check service health
-docker compose ps
-```
-
-### Clean Up
-
-```bash
-# Remove stopped containers
-docker compose rm
-
-# Remove unused images
-docker image prune
-
-# Full cleanup (careful!)
-docker system prune -a
-```
-
----
-
-## Summary
-
-**Most deployments need:**
-- One AI provider API key
-- Default database settings
-- Default timeouts
-
-**Tune performance only if:**
-- You have specific bottlenecks
-- High-concurrency workload
-- Custom hardware (very fast or very slow)
-
-**Advanced features:**
-- Firecrawl for better web scraping
-- LangSmith for debugging workflows
-- Custom CA bundles for self-signed certs
+- [Environment Reference](environment-reference.md)
+- [Security Configuration](security.md)
+- [Residual Risks](../../../../docs/security/knowledge-engine-residual-risks.md)

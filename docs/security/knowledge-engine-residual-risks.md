@@ -112,3 +112,19 @@ A execução validada ocorreu num runner Ubuntu x86_64. Não confirma comportame
 O resultado atual demonstra que o bootstrap importado constrói, arranca, autentica, escreve e preserva dados no cenário local testado. Não demonstra que o runtime está endurecido ou pronto para produção.
 
 Qualquer integração deve preservar estes riscos como itens explícitos e não os interpretar como resolvidos pelo CI verde ou pelo smoke test bem-sucedido.
+
+## Aceitação formal dos riscos
+
+Em 28 de julho de 2026, o proprietário do repositório declarou conhecer e aceitar expressamente os riscos residuais R1 a R10 para o âmbito restrito de bootstrap local, isolado, de utilização pessoal e desenvolvimento.
+
+A aceitação não abrange:
+
+- utilização em produção;
+- exposição direta ou indireta à Internet;
+- acesso por utilizadores não confiáveis;
+- utilização multiutilizador ou institucional;
+- tratamento de dados sensíveis sem avaliação específica;
+- alteração das portas para interfaces externas;
+- ativação de componentes opcionais não validados como se fizessem parte do âmbito aprovado.
+
+A presente aceitação autoriza a progressão do trabalho e a revisão formal do respetivo pull request, mas não elimina, reduz nem declara resolvidos os riscos registados. Qualquer alargamento do âmbito exige nova avaliação e aceitação explícita.
