@@ -1,0 +1,16 @@
+-- Migration 25: hybrid evidence retrieval metadata and indexes
+
+DEFINE FIELD IF NOT EXISTS embedding_model ON TABLE evidence_block TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS embedded_text_hash ON TABLE evidence_block TYPE option<string>;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_source_version
+ON TABLE evidence_block FIELDS source, document_version;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_version_page
+ON TABLE evidence_block FIELDS document_version, pdf_page;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_block_type
+ON TABLE evidence_block FIELDS block_type;
+
+DEFINE INDEX IF NOT EXISTS idx_evidence_section_path
+ON TABLE evidence_block FIELDS section_path;
