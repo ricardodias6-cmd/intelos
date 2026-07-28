@@ -37,7 +37,7 @@ SURREAL_USER=intelos
 SURREAL_PASSWORD=<long-random-password>
 ```
 
-The application fails closed when the password is missing. Passwordless access is available only through `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` for isolated tests or local development and should not be part of the normal setup.
+The application fails closed when the password is missing. Passwordless access is available only through `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` for controlled tests or isolated local development and should not be part of the normal setup.
 
 ## 3. Install locked dependencies
 
@@ -63,8 +63,7 @@ The database port remains bound to `127.0.0.1:8000`.
 ## 5. Start the API
 
 ```bash
-API_HOST=127.0.0.1 API_RELOAD=true \
-  uv run --env-file .env uvicorn api.main:app \
+uv run --env-file .env uvicorn api.main:app \
   --host 127.0.0.1 --port 5055 --reload
 ```
 
@@ -91,7 +90,7 @@ In another terminal:
 
 ```bash
 cd frontend
-HOSTNAME=127.0.0.1 PORT=8502 npm run dev
+npm run dev -- --hostname 127.0.0.1 --port 8502
 ```
 
 Open:
@@ -120,17 +119,18 @@ Frontend:
 ```bash
 cd frontend
 npm run lint
-npm test -- --run
+npm test
 npm run build
 ```
 
 Dependency audits:
 
 ```bash
-uv run pip-audit
 cd frontend
 npm audit --omit=dev --audit-level=high
 ```
+
+The Python dependency audit is performed by the authoritative GitHub Actions workflow against the locked virtual environment.
 
 The GitHub Actions workflows remain the authoritative integration validation.
 
