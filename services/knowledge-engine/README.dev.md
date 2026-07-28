@@ -41,9 +41,11 @@ Frontend:
 ```bash
 cd frontend
 npm run lint
-npm test -- --run
+npm test
 npm run build
 ```
+
+The Python dependency audit is performed by the authoritative GitHub Actions workflow against the locked virtual environment.
 
 The GitHub Actions workflows remain authoritative for integration validation.
 
@@ -51,7 +53,7 @@ The GitHub Actions workflows remain authoritative for integration validation.
 
 - `OPEN_NOTEBOOK_PASSWORD` is required for the normal development setup.
 - Missing authentication fails closed.
-- `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is limited to isolated tests.
+- `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is limited to controlled tests or isolated local development and must never become the normal setup.
 - Do not use default SurrealDB credentials.
 - Do not bind reload servers to external interfaces.
 - Do not copy upstream Compose examples over the canonical Intelos file.
