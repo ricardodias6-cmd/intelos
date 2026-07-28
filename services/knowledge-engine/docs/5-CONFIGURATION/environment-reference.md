@@ -1,332 +1,152 @@
-# Complete Environment Reference
+# Environment Reference
 
-Comprehensive list of all environment variables available in Open Notebook.
+This reference describes the Intelos Knowledge Engine configuration used by the canonical Docker Compose deployment.
 
----
+## Required variables
 
-## API Configuration
+The checked-in Compose file rejects empty required values.
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `API_URL` | No | Auto-detected | URL where frontend reaches API (e.g., http://localhost:5055) |
-| `INTERNAL_API_URL` | No | http://localhost:5055 | Internal API URL for Next.js server-side proxying |
-| `API_CLIENT_TIMEOUT` | No | 300 | Client timeout in seconds (how long to wait for API response) |
-| `OPEN_NOTEBOOK_PASSWORD` | No | None | Password to protect Open Notebook instance |
-| `OPEN_NOTEBOOK_ENCRYPTION_KEY` | **Yes** | None | Secret string to encrypt credentials stored in database (any string works). **Required** for the credential system. Supports Docker secrets via `_FILE` suffix. |
-| `FRONTEND_BIND_HOST` | No | `0.0.0.0` (in Docker) | Network interface for Next.js to bind to. Default `0.0.0.0` ensures accessibility from reverse proxies. (Replaces `HOSTNAME`, which container runtimes such as Podman override with the container/pod hostname, causing Next.js to bind to the wrong address) |
-| `API_HOST` | No | `0.0.0.0` (in Docker) | Network interface for the API (uvicorn) to bind to. Set to `::` for IPv6 dual-stack environments (listens on IPv6 and, on Linux defaults, IPv4 too) |
-| `OPEN_NOTEBOOK_MAX_UPLOAD_SIZE_MB` | No | 100 | Maximum request body size (in MB) the API will accept, enforced before auth/routing. Raise this if you need to upload larger audio/video files. A fronting reverse proxy's own limit (e.g. nginx `client_max_body_size`) still applies and should be raised to match. |
+| Variable | Required | Default in canonical Compose | Purpose |
+|---|---:|---|---|
+| `OPEN_NOTEBOOK_ENCRYPTION_KEY` | Yes | none | Encrypts stored provider credentials. Losing or changing it makes existing encrypted credentials unreadable. |
+| `OPEN_NOTEBOOK_PASSWORD` | Yes | none | Password used by the Web UI and as the bearer credential for protected API routes. |
+| `SURREAL_USER` | Yes | none | SurrealDB user created during initial database setup. |
+| `SURREAL_PASSWORD` | Yes | none | SurrealDB password created during initial database setup. |
 
-> **Important**: `OPEN_NOTEBOOK_ENCRYPTION_KEY` is required for storing AI provider credentials via the Settings UI. Without it, you cannot save credentials. If you change or lose this key, all stored credentials become unreadable.
+The example file sets `SURREAL_USER=intelos` as a suggested username, but the password remains empty and must be supplied.
 
----
+## Authentication
 
-## Database: SurrealDB
+| Variable | Default | Description |
+|---|---|---|
+| `OPEN_NOTEBOOK_PASSWORD` | none | Protected routes fail closed when no password is configured. |
+| `OPEN_NOTEBOOK_ALLOW_NO_AUTH` | `false` | Allows passwordless access only when explicitly set to a recognised true value. Use only for isolated tests or local development. |
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `SURREAL_URL` | Yes | ws://surrealdb:8000/rpc | SurrealDB WebSocket connection URL |
-| `SURREAL_USER` | Yes | root | SurrealDB username |
-| `SURREAL_PASSWORD` | Yes | root | SurrealDB password |
-| `SURREAL_NAMESPACE` | Yes | open_notebook | SurrealDB namespace |
-| `SURREAL_DATABASE` | Yes | open_notebook | SurrealDB database name |
+Missing `OPEN_NOTEBOOK_PASSWORD` does not disable authentication. Protected requests receive a configuration error unless `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` has been deliberately set.
 
----
+Docker secret files are supported through:
 
-## Database: Retry Configuration
+- `OPEN_NOTEBOOK_PASSWORD_FILE`
+- `OPEN_NOTEBOOK_ENCRYPTION_KEY_FILE`
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `SURREAL_COMMANDS_RETRY_ENABLED` | No | true | Enable retries on failure |
-| `SURREAL_COMMANDS_RETRY_MAX_ATTEMPTS` | No | 3 | Maximum retry attempts |
-| `SURREAL_COMMANDS_RETRY_WAIT_STRATEGY` | No | exponential_jitter | Retry wait strategy (exponential_jitter/exponential/fixed/random) |
-| `SURREAL_COMMANDS_RETRY_WAIT_MIN` | No | 1 | Minimum wait time between retries (seconds) |
-| `SURREAL_COMMANDS_RETRY_WAIT_MAX` | No | 30 | Maximum wait time between retries (seconds) |
+Do not define both the direct value and its `_FILE` variant without verifying the secret-loading precedence.
 
----
+## Database connection
 
-## Worker: Concurrency
+| Variable | Canonical value | Description |
+|---|---|---|
+| `SURREAL_URL` | `ws://surrealdb:8000/rpc` | Internal Compose network address. |
+| `SURREAL_USER` | required from `.env` | Database user. |
+| `SURREAL_PASSWORD` | required from `.env` | Database password. |
+| `SURREAL_NAMESPACE` | `open_notebook` | Database namespace. |
+| `SURREAL_DATABASE` | `open_notebook` | Database name. |
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `OPEN_NOTEBOOK_WORKER_MAX_TASKS` | No | 5 | Maximum number of background tasks (source processing, embeddings, podcasts) the worker runs concurrently. Passed to the worker as `--max-tasks` at launch. Set to `1` for **sequential processing** on single-GPU or local-LLM setups, where parallel requests overload the model and trigger rate limits. |
+Database credentials are applied when SurrealDB is first initialised. Editing `.env` later is not a validated credential-rotation procedure for an existing data directory.
 
-> **Read at worker launch, from the process environment.** In Docker this comes from the container environment — set it under `environment:` in `docker-compose.yml` (or your orchestrator). For local `make worker-start` / `dev-init.sh`, export it in your shell (e.g. `export OPEN_NOTEBOOK_WORKER_MAX_TASKS=1`) — it is consumed by the shell before the app loads `.env`, so a value placed only in `.env` will not apply to these local launch paths.
+## Network and API
 
----
+| Variable | Default or canonical value | Description |
+|---|---|---|
+| `API_HOST` | `0.0.0.0` inside the container | Container bind address. Host publication remains restricted to `127.0.0.1` by Compose. |
+| `API_PORT` | `5055` | API port. |
+| `FRONTEND_BIND_HOST` | `0.0.0.0` inside the container | Frontend bind address inside the container. |
+| `API_URL` | auto-detected | External API URL used by the frontend when required. |
+| `INTERNAL_API_URL` | internal default | Server-side API route used by the Next.js process. |
+| `CORS_ORIGINS` | canonical local origins | Comma-separated origins allowed to call the API. |
+| `OPEN_NOTEBOOK_MAX_UPLOAD_SIZE_MB` | `100` | Maximum API request body size in megabytes. |
 
-## LLM Timeouts
+The distinction between container binding and host publication is important. The processes listen inside the container, while Docker Compose publishes ports only on `127.0.0.1`.
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `ESPERANTO_LLM_TIMEOUT` | No | 60 | LLM inference timeout in seconds |
-| `ESPERANTO_SSL_VERIFY` | No | true | Verify SSL certificates (false = development only) |
-| `ESPERANTO_SSL_CA_BUNDLE` | No | None | Path to custom CA certificate bundle |
+The canonical Compose value is:
 
----
-
-## Embeddings
-
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `OPEN_NOTEBOOK_EMBEDDING_BATCH_SIZE` | No | 50 | Number of texts sent per embedding batch. Lower this for CPU-only or stricter OpenAI-compatible embedding providers. |
-| `OPEN_NOTEBOOK_MIN_CHUNK_SIZE` | No | 5 | Minimum chunk size in tokens. Chunks below this threshold are dropped before embedding to avoid degenerate single-character fragments that some providers (e.g. llama.cpp) return null embeddings for. Set to `0` to disable filtering. |
-
----
-
-## API / CORS
-
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `CORS_ORIGINS` | No | `*` | Comma-separated list of origins allowed to call the API (e.g. `https://app.example.com,https://www.example.com`). Default `*` accepts any origin; **for production, set this explicitly to your frontend origin(s)**. Changes require an API restart. The API logs a warning on startup when unset. |
-
-**When to change this**:
-- You access the UI at a custom domain (reverse proxy, HTTPS, public deployment).
-- The frontend runs on a different port than `3000`.
-- You serve the frontend from a different host than the API (e.g. CDN).
-
-Example for a production deployment behind a reverse proxy:
-
-```bash
-CORS_ORIGINS=https://notebook.example.com
+```dotenv
+CORS_ORIGINS=http://127.0.0.1:8502,http://localhost:8502
 ```
 
----
+Do not set `CORS_ORIGINS=*` for an exposed deployment.
 
-## Text-to-Speech (TTS)
+## Worker and processing
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `TTS_BATCH_SIZE` | No | 5 | Concurrent TTS requests (1-5, depends on provider) |
-| `ESPERANTO_TTS_TIMEOUT` | No | 300 | Text-to-speech request timeout in seconds (passed through to Esperanto). Increase it for slow or self-hosted TTS providers that take longer than 5 minutes to synthesize a segment, otherwise long podcast segments can fail with a timeout. |
+| Variable | Default | Description |
+|---|---|---|
+| `OPEN_NOTEBOOK_WORKER_MAX_TASKS` | `5` | Maximum concurrent background tasks. Set to `1` for constrained local hardware or local model servers. |
+| `OPEN_NOTEBOOK_EMBEDDING_BATCH_SIZE` | `50` | Number of texts sent in each embedding batch. |
+| `OPEN_NOTEBOOK_MIN_CHUNK_SIZE` | `5` | Minimum token count retained for embedding. |
+| `API_CLIENT_TIMEOUT` | `300` | Frontend/API client timeout in seconds. |
+| `ESPERANTO_LLM_TIMEOUT` | `60` | Language-model request timeout. |
+| `ESPERANTO_TTS_TIMEOUT` | `300` | Text-to-speech timeout. |
+| `TTS_BATCH_SIZE` | `5` | Concurrent text-to-speech requests. |
 
----
+## Optional extraction runtimes
 
-## Content Extraction
+These are disabled by default and were not covered by the validated smoke test.
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `FIRECRAWL_API_KEY` | No | None | Firecrawl API key for advanced web scraping |
-| `FIRECRAWL_API_URL` | No | None | Base URL of a self-hosted Firecrawl instance (use instead of the hosted service) |
-| `CCORE_FIRECRAWL_PROXY` | No | `auto` | Firecrawl proxy mode to bypass anti-bot protection: `basic`, `stealth`, or `auto` |
-| `CCORE_FIRECRAWL_WAIT_FOR` | No | `3000` | Milliseconds Firecrawl waits for JavaScript to render before capturing the page |
-| `JINA_API_KEY` | No | None | Jina AI API key for web extraction |
-| `CRAWL4AI_API_URL` | No | None | Base URL of a remote Crawl4AI server. Set this to use Crawl4AI without a local install |
+| Variable | Default | Description |
+|---|---|---|
+| `OPEN_NOTEBOOK_ENABLE_DOCLING` | `false` | Installs the Docling runtime and model dependencies on first startup. |
+| `OPEN_NOTEBOOK_ENABLE_CRAWL4AI` | `false` | Installs local Crawl4AI and Chromium components on first startup. |
+| `CRAWL4AI_API_URL` | none | Uses a separately managed Crawl4AI service instead of the local runtime. |
+| `FIRECRAWL_API_KEY` | none | Firecrawl provider credential. |
+| `FIRECRAWL_API_URL` | none | Self-hosted Firecrawl endpoint. |
+| `JINA_API_KEY` | none | Jina extraction credential. |
 
-### Optional heavy runtimes (installed on first startup)
+Runtime installation downloads additional packages, models or browsers into caches under `/app/data`. Review supply-chain, resource and licence implications before enabling it.
 
-These are **off by default** to keep the image lean. Setting one to `true` makes the container install that runtime the first time it starts (downloads are cached on the `/app/data` volume, so only the first boot is slow). See [Content Processing Engines → Optional engines](../3-USER-GUIDE/content-processing-engines.md#optional-engines-docling--crawl4ai).
+## Proxy variables
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `OPEN_NOTEBOOK_ENABLE_DOCLING` | No | `false` | Install Docling on first startup: unlocks the `docling` document engine, the OCR toggle and image sources. Pulls a large ML stack. |
-| `OPEN_NOTEBOOK_ENABLE_CRAWL4AI` | No | `false` | Install the local Crawl4AI runtime + a Chromium browser on first startup: unlocks the `crawl4ai` URL engine. Not needed if `CRAWL4AI_API_URL` is set. |
+Standard proxy variables are supported:
 
-**Setup:**
-- Firecrawl: https://firecrawl.dev/
-- Jina: https://jina.ai/
-- Crawl4AI: https://github.com/unclecode/crawl4ai
+- `HTTP_PROXY`
+- `HTTPS_PROXY`
+- `NO_PROXY`
 
-The `CCORE_FIRECRAWL_*` variables are passed straight through to the content-core library (its settings are prefixed with `CCORE_`); Open Notebook itself doesn't read them. See [Content Processing Engines](../3-USER-GUIDE/content-processing-engines.md) for how these engines are selected in the UI.
+Internal service names must bypass the proxy. The application adds common local and SurrealDB hosts as a safety measure, but explicit configuration is recommended in managed environments.
 
----
+Example:
 
-## Network / Proxy
-
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `HTTP_PROXY` | No | None | HTTP proxy URL for outbound HTTP requests |
-| `HTTPS_PROXY` | No | None | HTTPS proxy URL for outbound HTTPS requests |
-| `NO_PROXY` | No | None | Comma-separated list of hosts to bypass proxy (must include the internal DB hosts — see below) |
-
-Route all outbound HTTP requests through a proxy server. Useful for corporate/firewalled environments.
-
-> **Important:** `NO_PROXY` must list the internal SurrealDB hosts — `host.docker.internal` (Docker) and `surrealdb` (the compose service name). The SurrealDB SDK connects over a websocket, and `websockets` 15.0+ tunnels even `ws://` connections through a configured proxy, which then rejects the internal host with **HTTP 403** and prevents the API and worker from starting. Open Notebook injects `host.docker.internal,surrealdb,localhost,127.0.0.1` into `NO_PROXY` automatically at startup as a safety net, but you should still set them explicitly.
-
-The underlying libraries (esperanto, content-core, podcast-creator) automatically detect proxy settings from these standard environment variables.
-
-**Affects:**
-- AI provider API calls (OpenAI, Anthropic, Google, Groq, etc.)
-- Content extraction from URLs (web scraping, YouTube transcripts)
-- Podcast generation (LLM and TTS provider calls)
-
-**Format:** `http://[user:pass@]host:port` or `https://[user:pass@]host:port`
-
-**Examples:**
-```bash
-# Basic proxy
-HTTP_PROXY=http://proxy.corp.com:8080
-HTTPS_PROXY=http://proxy.corp.com:8080
-
-# Authenticated proxy
-HTTP_PROXY=http://user:password@proxy.corp.com:8080
-HTTPS_PROXY=http://user:password@proxy.corp.com:8080
-
-# Bypass proxy for local hosts (include the internal DB hosts!)
-NO_PROXY=localhost,127.0.0.1,host.docker.internal,surrealdb,.local
+```dotenv
+NO_PROXY=localhost,127.0.0.1,surrealdb,host.docker.internal
 ```
 
----
+Do not place proxy credentials in committed files.
 
-## Debugging & Monitoring
+## TLS verification
 
-| Variable | Required? | Default | Description |
-|----------|-----------|---------|-------------|
-| `LANGCHAIN_TRACING_V2` | No | false | Enable LangSmith tracing |
-| `LANGCHAIN_ENDPOINT` | No | https://api.smith.langchain.com | LangSmith endpoint |
-| `LANGCHAIN_API_KEY` | No | None | LangSmith API key |
-| `LANGCHAIN_PROJECT` | No | Open Notebook | LangSmith project name |
+| Variable | Default | Description |
+|---|---|---|
+| `ESPERANTO_SSL_VERIFY` | `true` | Validates provider TLS certificates. |
+| `ESPERANTO_SSL_CA_BUNDLE` | none | Optional custom CA bundle path. |
 
-**Setup:** https://smith.langchain.com/
+Disabling TLS verification is for isolated troubleshooting only and should not become a persistent configuration.
 
----
+## Observability
 
-## Environment Variables by Use Case
+LangSmith tracing variables may transmit prompts, responses and metadata to an external service:
 
-### Minimal Setup (New Installation)
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=my-secret-key
-SURREAL_URL=ws://surrealdb:8000/rpc
-SURREAL_USER=root
-SURREAL_PASSWORD=password
-SURREAL_NAMESPACE=open_notebook
-SURREAL_DATABASE=open_notebook
-```
-Then configure AI providers via **Settings → API Keys** in the browser.
+- `LANGCHAIN_TRACING_V2`
+- `LANGCHAIN_ENDPOINT`
+- `LANGCHAIN_API_KEY`
+- `LANGCHAIN_PROJECT`
 
-### Production Deployment
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=your-strong-secret-key
-OPEN_NOTEBOOK_PASSWORD=your-secure-password
-API_URL=https://mynotebook.example.com
-SURREAL_USER=production_user
-SURREAL_PASSWORD=secure_password
+Tracing is not required for normal operation. Review data-handling implications before enabling it.
+
+## Minimal canonical `.env`
+
+```dotenv
+OPEN_NOTEBOOK_ENCRYPTION_KEY=<long-random-secret>
+OPEN_NOTEBOOK_PASSWORD=<long-random-password>
+SURREAL_USER=intelos
+SURREAL_PASSWORD=<long-random-password>
 ```
 
-### Self-Hosted Behind Reverse Proxy
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
-API_URL=https://mynotebook.example.com
-```
+The remaining database and local CORS values are supplied by the checked-in Compose file.
 
-### Corporate Environment (Behind Proxy)
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
-HTTP_PROXY=http://proxy.corp.com:8080
-HTTPS_PROXY=http://proxy.corp.com:8080
-NO_PROXY=localhost,127.0.0.1,host.docker.internal,surrealdb,.local
-```
+## Operational rules
 
-### High-Performance Deployment
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
-SURREAL_COMMANDS_MAX_TASKS=10
-TTS_BATCH_SIZE=5
-API_CLIENT_TIMEOUT=600
-```
-
-### Debugging
-```
-OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=your-key
-```
-
----
-
-## Validation
-
-Check if a variable is set:
-
-```bash
-# Check single variable
-echo $OPEN_NOTEBOOK_ENCRYPTION_KEY
-
-# Check multiple
-env | grep -E "OPEN_NOTEBOOK|API_URL"
-
-# Print all config
-env | grep -E "^[A-Z_]+=" | sort
-```
-
----
-
-## Notes
-
-- **Case-sensitive:** `OPEN_NOTEBOOK_ENCRYPTION_KEY` ≠ `open_notebook_encryption_key`
-- **No spaces:** `OPEN_NOTEBOOK_ENCRYPTION_KEY=my-key` not `OPEN_NOTEBOOK_ENCRYPTION_KEY = my-key`
-- **Quote values:** Use quotes for values with spaces: `API_URL="http://my server:5055"`
-- **Restart required:** Changes take effect after restarting services
-- **Secrets:** Don't commit encryption keys or passwords to git
-- **AI Providers:** Configure via **Settings → API Keys** in the browser (not via env vars)
-- **Migration:** Use Settings UI to migrate existing env vars to the credential system. See [API Configuration](../3-USER-GUIDE/api-configuration.md#migrating-from-environment-variables)
-
----
-
-## Quick Setup Checklist
-
-- [ ] Set `OPEN_NOTEBOOK_ENCRYPTION_KEY` in docker-compose.yml
-- [ ] Set database credentials (`SURREAL_*`)
-- [ ] Start services
-- [ ] Open browser → Go to **Settings → API Keys**
-- [ ] **Add Credential** for your AI provider
-- [ ] **Test Connection** to verify
-- [ ] **Discover & Register Models**
-- [ ] Set `API_URL` if behind reverse proxy
-- [ ] Change `SURREAL_PASSWORD` in production
-- [ ] Try a test chat
-
-Done!
-
----
-
-## Legacy: AI Provider Environment Variables (Deprecated)
-
-> **Deprecated**: The following AI provider API key environment variables are deprecated. Configure providers via the Settings UI instead. These variables may still work as a fallback but are no longer recommended.
-
-If you have these variables configured from a previous installation, click the **Migrate to Database** button in **Settings → API Keys** to import them into the credential system, then remove them from your configuration.
-
-| Variable | Provider | Replacement |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | OpenAI | Settings → API Keys → Add OpenAI Credential |
-| `ANTHROPIC_API_KEY` | Anthropic | Settings → API Keys → Add Anthropic Credential |
-| `GOOGLE_API_KEY` | Google Gemini | Settings → API Keys → Add Google Credential |
-| `GEMINI_API_BASE_URL` | Google Gemini | Configure in Google Gemini credential |
-| `VERTEX_PROJECT` | Vertex AI | Settings → API Keys → Add Vertex AI Credential |
-| `VERTEX_LOCATION` | Vertex AI | Configure in Vertex AI credential |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Vertex AI | Configure in Vertex AI credential |
-| `GROQ_API_KEY` | Groq | Settings → API Keys → Add Groq Credential |
-| `MISTRAL_API_KEY` | Mistral | Settings → API Keys → Add Mistral Credential |
-| `DEEPSEEK_API_KEY` | DeepSeek | Settings → API Keys → Add DeepSeek Credential |
-| `XAI_API_KEY` | xAI | Settings → API Keys → Add xAI Credential |
-| `OLLAMA_API_BASE` | Ollama | Settings → API Keys → Add Ollama Credential |
-| `OMLX_API_BASE` | oMLX | Settings → API Keys → Add oMLX Credential |
-| `OMLX_API_KEY` | oMLX | Optional; only if oMLX was started with `--api-key` |
-| `OPENROUTER_API_KEY` | OpenRouter | Settings → API Keys → Add OpenRouter Credential |
-| `OPENROUTER_BASE_URL` | OpenRouter | Configure in OpenRouter credential |
-| `VOYAGE_API_KEY` | Voyage AI | Settings → API Keys → Add Voyage AI Credential |
-| `ELEVENLABS_API_KEY` | ElevenLabs | Settings → API Keys → Add ElevenLabs Credential |
-| `OPENAI_COMPATIBLE_BASE_URL` | OpenAI-Compatible | Settings → API Keys → Add OpenAI-Compatible Credential |
-| `OPENAI_COMPATIBLE_API_KEY` | OpenAI-Compatible | Configure in OpenAI-Compatible credential |
-| `OPENAI_COMPATIBLE_BASE_URL_LLM` | OpenAI-Compatible | Configure per-service URL in credential |
-| `OPENAI_COMPATIBLE_API_KEY_LLM` | OpenAI-Compatible | Configure per-service key in credential |
-| `OPENAI_COMPATIBLE_BASE_URL_EMBEDDING` | OpenAI-Compatible | Configure per-service URL in credential |
-| `OPENAI_COMPATIBLE_API_KEY_EMBEDDING` | OpenAI-Compatible | Configure per-service key in credential |
-| `OPENAI_COMPATIBLE_BASE_URL_STT` | OpenAI-Compatible | Configure per-service URL in credential |
-| `OPENAI_COMPATIBLE_API_KEY_STT` | OpenAI-Compatible | Configure per-service key in credential |
-| `OPENAI_COMPATIBLE_BASE_URL_TTS` | OpenAI-Compatible | Configure per-service URL in credential |
-| `OPENAI_COMPATIBLE_API_KEY_TTS` | OpenAI-Compatible | Configure per-service key in credential |
-| `DASHSCOPE_API_KEY` | DashScope (Qwen) | Settings → API Keys → Add DashScope Credential |
-| `MINIMAX_API_KEY` | MiniMax | Settings → API Keys → Add MiniMax Credential |
-| `NOVITA_API_KEY` | Novita | Settings → API Keys → Add Novita Credential |
-| `PPQ_API_KEY` | PayPerQ (PPQ) | Settings → API Keys → Add PayPerQ Credential |
-| `COHERE_API_KEY` | Cohere | Settings → API Keys → Add Cohere Credential |
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI | Settings → API Keys → Add Azure OpenAI Credential |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI | Configure in Azure OpenAI credential |
-| `AZURE_OPENAI_API_VERSION` | Azure OpenAI | Configure in Azure OpenAI credential |
-| `AZURE_OPENAI_API_KEY_LLM` | Azure OpenAI | Configure per-service in credential |
-| `AZURE_OPENAI_ENDPOINT_LLM` | Azure OpenAI | Configure per-service in credential |
-| `AZURE_OPENAI_API_VERSION_LLM` | Azure OpenAI | Configure per-service in credential |
-| `AZURE_OPENAI_API_KEY_EMBEDDING` | Azure OpenAI | Configure per-service in credential |
-| `AZURE_OPENAI_ENDPOINT_EMBEDDING` | Azure OpenAI | Configure per-service in credential |
-| `AZURE_OPENAI_API_VERSION_EMBEDDING` | Azure OpenAI | Configure per-service in credential |
+- never commit `.env`;
+- never use example strings as real secrets;
+- restart the affected containers after changing configuration;
+- back up the encryption key separately from the database;
+- keep host ports bound to localhost;
+- do not infer that a green CI run approves remote or production deployment;
+- consult [Security Configuration](security.md) and the [Residual Risks](../../../../docs/security/knowledge-engine-residual-risks.md).
