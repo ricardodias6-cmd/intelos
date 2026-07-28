@@ -45,7 +45,19 @@ jobs:
         run: uv run ruff check api commands open_notebook tests run_api.py
 
       - name: Run backend tests
-        run: uv run pytest -q
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pytest -q 2>&1 | tee pytest-output.txt
+
+      - name: Upload backend test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-output
+          path: services/knowledge-engine/pytest-output.txt
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Capture Python dependency audit
         id: pip_audit
