@@ -1,31 +1,57 @@
 # Developer Guide
 
-**📍 This file has moved!**
+Development takes place inside the Intelos repository at:
 
-Developer documentation now lives in the development docs structure.
+`services/knowledge-engine`
 
-👉 **[Read the Development Setup Guide](docs/7-DEVELOPMENT/development-setup.md)**
+Do not clone the upstream Open Notebook repository as a substitute for this imported and hardened snapshot.
 
----
+## Supported development setup
 
-## Quick Links
+Follow:
 
-- **Setting up your environment?** → [Development Setup](docs/7-DEVELOPMENT/development-setup.md) (includes the make-workflow matrix)
-- **New developer?** → [Quick Start](docs/7-DEVELOPMENT/quick-start.md)
-- **Want to contribute?** → [Contributing Guide](docs/7-DEVELOPMENT/contributing.md)
-- **Making a common change?** → [Change Playbooks](docs/7-DEVELOPMENT/change-playbooks.md)
-- **Publishing Docker images?** → [Release Process](.github/RELEASE_PROCESS.md)
-- **Coding-agent rules?** → [AGENTS.md](AGENTS.md)
+- [From Source Installation](docs/1-INSTALLATION/from-source.md)
+- [Development Quick Start](docs/7-DEVELOPMENT/quick-start.md)
+- [Development Setup](docs/7-DEVELOPMENT/development-setup.md)
 
----
-
-## TL;DR
+## Minimum local sequence
 
 ```bash
-git clone https://github.com/lfnovo/open-notebook.git && cd open-notebook
+cd services/knowledge-engine
 cp .env.example .env
-uv sync
-make start-all    # SurrealDB + API + worker + frontend
+# Fill every required secret in .env
+uv sync --frozen
+cd frontend && npm ci && cd ..
+docker compose up -d surrealdb
 ```
 
-For everything else, see **[docs/7-DEVELOPMENT/](docs/7-DEVELOPMENT/index.md)**.
+Start the API, worker and frontend only on localhost, as described in the development guide.
+
+## Validation
+
+Backend:
+
+```bash
+uv run ruff check .
+uv run pytest
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run lint
+npm test -- --run
+npm run build
+```
+
+The GitHub Actions workflows remain authoritative for integration validation.
+
+## Security constraints
+
+- `OPEN_NOTEBOOK_PASSWORD` is required for the normal development setup.
+- Missing authentication fails closed.
+- `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is limited to isolated tests.
+- Do not use default SurrealDB credentials.
+- Do not bind reload servers to external interfaces.
+- Do not copy upstream Compose examples over the canonical Intelos file.
