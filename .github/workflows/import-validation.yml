@@ -41,6 +41,13 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --frozen --group dev
 
+      - name: Initialize backend test output
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'Backend tests were not executed because an earlier validation step failed.' \
+            > pytest-output.txt
+
       - name: Lint backend
         run: uv run ruff check api commands open_notebook tests run_api.py
 
@@ -56,7 +63,7 @@ jobs:
         with:
           name: backend-test-output
           path: services/knowledge-engine/pytest-output.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Capture Python dependency audit
