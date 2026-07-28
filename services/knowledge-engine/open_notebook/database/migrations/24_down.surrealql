@@ -2,6 +2,7 @@
 
 REMOVE EVENT IF EXISTS intelos_claim_relation_delete ON TABLE claim;
 REMOVE EVENT IF EXISTS intelos_evidence_relation_delete ON TABLE evidence_block;
+REMOVE EVENT IF EXISTS intelos_document_version_evidence_delete ON TABLE document_version;
 REMOVE EVENT IF EXISTS intelos_source_evidence_delete ON TABLE source;
 
 REMOVE INDEX IF EXISTS idx_claim_evidence_block ON TABLE claim_evidence;
