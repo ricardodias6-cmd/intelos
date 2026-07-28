@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from loguru import logger
+
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.evidence import DocumentVersionRecord, EvidenceBlockRecord
 from open_notebook.evidence.docling_adapter import StructuredDocumentExtraction
@@ -84,6 +86,29 @@ def _validate_existing_extraction(
     return incoming_set
 
 
+async def _index_new_blocks(document_version_id: str, created_blocks: int) -> None:
+    """Index newly persisted blocks when an embedding model is configured.
+
+    Evidence persistence remains available without an embedding provider. The
+    dedicated indexing API can backfill those blocks later.
+    """
+
+    if created_blocks == 0:
+        return
+
+    from open_notebook.evidence.retrieval import index_evidence_blocks
+
+    try:
+        await index_evidence_blocks(document_version_id=document_version_id)
+    except InvalidInputError as exc:
+        logger.info("Evidence embeddings deferred: {}", exc)
+    except Exception:
+        logger.exception(
+            "Evidence blocks were persisted but automatic embedding indexing failed"
+        )
+        raise
+
+
 async def persist_structured_extraction(
     *, source_id: str, extraction: StructuredDocumentExtraction
 ) -> EvidenceIngestionResult:
@@ -150,6 +175,8 @@ async def persist_structured_extraction(
         )
         await record.save()
         created_blocks += 1
+
+    await _index_new_blocks(version.id, created_blocks)
 
     return EvidenceIngestionResult(
         document_version_id=version.id,
