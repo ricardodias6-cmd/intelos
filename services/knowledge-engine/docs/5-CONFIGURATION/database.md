@@ -1,52 +1,102 @@
-# Database - SurrealDB Configuration
+# Database Configuration
 
-Open Notebook uses SurrealDB for its database needs. 
+The Intelos Knowledge Engine uses SurrealDB through the canonical Docker Compose stack.
 
----
+## Canonical connection
 
-## Default Configuration
+The application container connects over the internal Compose network:
 
-Open Notebook should work out of the box with SurrealDB as long as the environment variables are correctly setup. 
-
-
-### DB running in the same docker compose as Open Notebook (recommended)
-
-The example above is for when you are running SurrealDB as a separate docker container, which is the method described [here](../1-INSTALLATION/docker-compose.md) (and our recommended method). 
-
-```env
-SURREAL_URL="ws://surrealdb:8000/rpc"
-SURREAL_USER="root"
-SURREAL_PASSWORD="root"
-SURREAL_NAMESPACE="open_notebook"
-SURREAL_DATABASE="open_notebook"
+```dotenv
+SURREAL_URL=ws://surrealdb:8000/rpc
+SURREAL_USER=<value from .env>
+SURREAL_PASSWORD=<value from .env>
+SURREAL_NAMESPACE=open_notebook
+SURREAL_DATABASE=open_notebook
 ```
 
-### DB running in the host machine and Open Notebook running in Docker
+The checked-in Compose file requires non-empty database credentials. Do not use `root:root`, `root:password` or other imported example values.
 
-If ON is running in docker and SurrealDB is on your host machine, you need to point to it. 
+## Host publication
 
-```env
-SURREAL_URL="ws://your-machine-ip:8000/rpc" #or host.docker.internal
-SURREAL_USER="root"
-SURREAL_PASSWORD="root"
-SURREAL_NAMESPACE="open_notebook"
-SURREAL_DATABASE="open_notebook"
+SurrealDB is published only on:
+
+`127.0.0.1:8000`
+
+This host port exists for local diagnostics. The application does not need it because it reaches `surrealdb:8000` through the Compose network.
+
+Do not publish the database on all host interfaces or open it through a firewall, router or public reverse proxy.
+
+## Persistence
+
+Data is stored under:
+
+`./surreal_data`
+
+Stopping containers with:
+
+```bash
+docker compose down
 ```
 
-> **Note:** If SurrealDB runs in Docker with its port published on `127.0.0.1` only (the documented default), it won't be reachable at your machine's IP. Re-publish the port deliberately — see `docker-compose.override.yml.example` in the repo root — behind a firewall or SSH tunnel, with real credentials set.
+does not remove this directory.
 
-### Open Notebook and Surreal are running on the same machine
+Do not delete it unless deliberate data loss is acceptable and any required backup has been created and verified.
 
-If you are running both services locally or if you are using the deprecated [single container setup](../1-INSTALLATION/single-container.md)
+## Initial credentials and rotation
 
-```env
-SURREAL_URL="ws://localhost:8000/rpc"
-SURREAL_USER="root"
-SURREAL_PASSWORD="root"
-SURREAL_NAMESPACE="open_notebook"
-SURREAL_DATABASE="open_notebook"
+SurrealDB establishes its root credentials when the data directory is first initialised.
+
+Changing `SURREAL_USER` or `SURREAL_PASSWORD` in `.env` after that point is not a validated rotation procedure. The existing database may continue to expect the original credentials.
+
+A future credential-rotation runbook must cover:
+
+1. authenticated database access with the existing credential;
+2. creation or update of the replacement account;
+3. application configuration update;
+4. restart and functional verification;
+5. rollback and recovery;
+6. removal of the previous credential only after validation.
+
+## Migrations
+
+The API runs database migrations during startup. Startup fails if the database cannot be reached or if migrations fail.
+
+Inspect application logs:
+
+```bash
+docker compose logs open_notebook
 ```
 
-## Multiple databases
+Do not bypass a migration failure by starting the API against an unknown schema.
 
-You can have multiple namespaces in one SurrealDB instance and you can also have multiple databases in one instance. So, if you want to setup multiple open noteobok deployments for different users, you don't need to deploy multiple databases. 
+## Verification
+
+Check service state:
+
+```bash
+docker compose ps
+```
+
+Check database logs:
+
+```bash
+docker compose logs surrealdb
+```
+
+Check API health after migrations:
+
+```bash
+curl --fail http://127.0.0.1:5055/health
+```
+
+## Multiple deployments
+
+Do not share one SurrealDB instance or data directory between independent Intelos deployments without a separate design and isolation review.
+
+The current validation covers one local application stack and one database namespace. It does not validate multi-user, multi-tenant or shared-database isolation.
+
+## Residual risks
+
+The current database container runs as root, uses a mutable image tag and has not completed backup, restore, abrupt-failure or high-concurrency testing.
+
+See the [Residual Risks](../../../../docs/security/knowledge-engine-residual-risks.md).
