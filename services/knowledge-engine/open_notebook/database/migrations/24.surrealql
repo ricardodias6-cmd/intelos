@@ -83,6 +83,13 @@ THEN {
     DELETE document_version WHERE source == $before.id;
 };
 
+DEFINE EVENT IF NOT EXISTS intelos_document_version_evidence_delete
+ON TABLE document_version
+WHEN ($after == NONE)
+THEN {
+    DELETE evidence_block WHERE document_version == $before.id;
+};
+
 DEFINE EVENT IF NOT EXISTS intelos_evidence_relation_delete
 ON TABLE evidence_block
 WHEN ($after == NONE)
