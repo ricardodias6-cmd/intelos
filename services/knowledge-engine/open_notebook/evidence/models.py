@@ -194,14 +194,19 @@ class Claim(BaseModel):
 
     @model_validator(mode="after")
     def validate_claim_shape(self) -> "Claim":
-        evidence_required = self.kind in {
+        evidence_backed_kind = self.kind in {
             ClaimKind.FACT,
             ClaimKind.QUOTE,
             ClaimKind.STATISTIC,
             ClaimKind.TECHNICAL,
         }
+        evidence_required = (
+            evidence_backed_kind and self.support_status != SupportStatus.UNSUPPORTED
+        )
         if evidence_required and not self.evidence_ids:
-            raise ValueError(f"{self.kind.value} claims require evidence_ids")
+            raise ValueError(
+                f"{self.kind.value} claims with support require evidence_ids"
+            )
 
         if self.kind == ClaimKind.QUOTE and not self.quoted_text:
             raise ValueError("quote claims require quoted_text")
