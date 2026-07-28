@@ -228,3 +228,18 @@ def test_user_assertion_is_not_automatically_verified():
     assert "USER_ASSERTION_TREATED_AS_VERIFIED" in {
         issue.code for issue in report.issues
     }
+
+
+def test_unsupported_fact_can_exist_without_fabricated_evidence():
+    claim = Claim(
+        claim_id="CLM-009",
+        text="Não foi encontrada evidência suficiente para confirmar a afirmação.",
+        kind=ClaimKind.FACT,
+        support_status=SupportStatus.UNSUPPORTED,
+        render_as_definitive=False,
+    )
+
+    report = EvidenceValidator([]).validate([claim])
+
+    assert claim.evidence_ids == []
+    assert report.valid is True
