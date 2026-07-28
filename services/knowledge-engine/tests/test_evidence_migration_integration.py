@@ -10,7 +10,7 @@ import hashlib
 import pytest
 
 from open_notebook.database.async_migrate import AsyncMigrationManager
-from open_notebook.database.repository import repo_query
+from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.evidence.docling_adapter import StructuredDocumentExtraction
 from open_notebook.evidence.ingestion import persist_structured_extraction
 from open_notebook.evidence.models import (
@@ -131,6 +131,13 @@ async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None
             source_id="source:evidence_test",
             extraction=_structured_extraction(ocr_enabled=True),
         )
+
+    await repo_query(
+        "DELETE $version;",
+        {"version": ensure_record_id(first.document_version_id)},
+    )
+    assert await repo_query("SELECT * FROM document_version;") == []
+    assert await repo_query("SELECT * FROM evidence_block;") == []
 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 23
