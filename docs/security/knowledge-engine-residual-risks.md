@@ -21,7 +21,7 @@ A execução bem-sucedida validou:
 - preservação do notebook criado após o reinício;
 - remoção dos contentores e dados descartáveis no final.
 
-Execução de referência: GitHub Actions `Knowledge engine smoke test`, run `30335512849`, concluída com sucesso.
+Execução de referência: GitHub Actions `Knowledge engine smoke test`, run `30335512849`, concluída com sucesso para o estado funcional do ramo imediatamente anterior à adição deste documento. A alteração posterior limita-se à documentação e não modifica o código, as dependências, a imagem ou a configuração executados no teste.
 
 ## Riscos residuais
 
