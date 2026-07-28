@@ -91,6 +91,19 @@ def _extraction(
     )
 
 
+def _deterministic_vector(text: str) -> list[float]:
+    """Map materially different passages to distinguishable semantic vectors."""
+
+    normalized = text.casefold()
+    if "24 horas" in normalized or "prazo para decidir" in normalized:
+        return [1.0, 0.0, 0.0]
+    if "confirma" in normalized and "autorização" in normalized:
+        return [0.70, 0.70, 0.0]
+    if "setenta e duas horas" in normalized:
+        return [0.85, 0.0, 0.15]
+    return [0.0, 0.0, 1.0]
+
+
 @pytest.mark.asyncio
 async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
     manager = AsyncMigrationManager()
@@ -177,18 +190,10 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
         return _FakeEmbeddingModel()
 
     async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
-        vectors = []
-        for text in texts:
-            normalized = text.casefold()
-            vectors.append(
-                [1.0, 0.0]
-                if "autorização" in normalized or "24 horas" in normalized
-                else [0.0, 1.0]
-            )
-        return vectors
+        return [_deterministic_vector(text) for text in texts]
 
     async def fake_generate_embedding(query: str) -> list[float]:
-        return [1.0, 0.0]
+        return _deterministic_vector(query)
 
     monkeypatch.setattr(model_manager, "get_embedding_model", fake_get_embedding_model)
     monkeypatch.setattr(
@@ -223,7 +228,12 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     assert response.selected_versions[source_b] == manual_hash
     assert response.hits[0].evidence_id == "EV-PHASE2-CURRENT-001"
     assert all(hit.evidence_id != "EV-PHASE2-OLD-001" for hit in response.hits)
+
     first = response.hits[0]
+    manual = next(hit for hit in response.hits if hit.evidence_id == "EV-PHASE2-MANUAL-001")
+    assert first.semantic_score > manual.semantic_score
+    assert first.lexical_score > manual.lexical_score
+    assert first.score > manual.score
     assert first.document_title == "Regulamento operacional"
     assert first.document_version_hash == current_hash
     assert first.pdf_page == 2
@@ -236,8 +246,6 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
         "y1": 260.0,
         "coordinate_origin": "TOPLEFT",
     }
-    assert first.semantic_score > 0
-    assert first.lexical_score > 0
 
     filtered = await retrieve_evidence(
         query="prazo de autorização 24 horas",
