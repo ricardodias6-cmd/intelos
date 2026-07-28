@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 
 from api.models import AskRequest, AskResponse, SearchRequest, SearchResponse
+from api.routers.evidence import router as evidence_router
 from open_notebook.ai.models import Model, model_manager
 from open_notebook.domain.notebook import text_search, vector_search
 from open_notebook.exceptions import (
@@ -16,6 +17,7 @@ from open_notebook.exceptions import (
 from open_notebook.graphs.ask import graph as ask_graph
 
 router = APIRouter()
+router.include_router(evidence_router)
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -23,7 +25,6 @@ async def search_knowledge_base(search_request: SearchRequest):
     """Search the knowledge base using text or vector search."""
     try:
         if search_request.type == "vector":
-            # Check if embedding model is available for vector search
             if not await model_manager.get_embedding_model():
                 raise HTTPException(
                     status_code=400,
@@ -38,7 +39,6 @@ async def search_knowledge_base(search_request: SearchRequest):
                 minimum_score=search_request.minimum_score,
             )
         else:
-            # Text search
             results = await text_search(
                 keyword=search_request.query,
                 results=search_request.limit,
@@ -73,8 +73,6 @@ async def stream_ask_response(
     try:
         final_answer = None
 
-        # LangGraph accepts a partial state dict at runtime, but its typed
-        # overloads require the full state type (langgraph typing limitation).
         async for chunk in ask_graph.astream(  # type: ignore[call-overload]
             input=dict(question=question),
             config=dict(
@@ -107,7 +105,6 @@ async def stream_ask_response(
                 final_data = {"type": "final_answer", "content": final_answer}
                 yield f"data: {json.dumps(final_data)}\n\n"
 
-        # Send completion signal
         completion_data = {"type": "complete", "final_answer": final_answer}
         yield f"data: {json.dumps(completion_data)}\n\n"
 
@@ -124,7 +121,6 @@ async def stream_ask_response(
 async def ask_knowledge_base(ask_request: AskRequest):
     """Ask the knowledge base a question using AI models."""
     try:
-        # Validate models exist
         strategy_model = await Model.get(ask_request.strategy_model)
         answer_model = await Model.get(ask_request.answer_model)
         final_answer_model = await Model.get(ask_request.final_answer_model)
@@ -145,14 +141,12 @@ async def ask_knowledge_base(ask_request: AskRequest):
                 detail=f"Final answer model {ask_request.final_answer_model} not found",
             )
 
-        # Check if embedding model is available
         if not await model_manager.get_embedding_model():
             raise HTTPException(
                 status_code=400,
                 detail="Ask feature requires an embedding model. Please configure one in the Models section.",
             )
 
-        # For streaming response
         return StreamingResponse(
             stream_ask_response(
                 ask_request.question, strategy_model, answer_model, final_answer_model
@@ -176,9 +170,8 @@ async def ask_knowledge_base(ask_request: AskRequest):
 
 @router.post("/search/ask/simple", response_model=AskResponse)
 async def ask_knowledge_base_simple(ask_request: AskRequest):
-    """Ask the knowledge base a question and return a simple response (non-streaming)."""
+    """Ask the knowledge base a question and return a simple response."""
     try:
-        # Validate models exist
         strategy_model = await Model.get(ask_request.strategy_model)
         answer_model = await Model.get(ask_request.answer_model)
         final_answer_model = await Model.get(ask_request.final_answer_model)
@@ -199,17 +192,13 @@ async def ask_knowledge_base_simple(ask_request: AskRequest):
                 detail=f"Final answer model {ask_request.final_answer_model} not found",
             )
 
-        # Check if embedding model is available
         if not await model_manager.get_embedding_model():
             raise HTTPException(
                 status_code=400,
                 detail="Ask feature requires an embedding model. Please configure one in the Models section.",
             )
 
-        # Run the ask graph and get final result
         final_answer = None
-        # LangGraph accepts a partial state dict at runtime, but its typed
-        # overloads require the full state type (langgraph typing limitation).
         async for chunk in ask_graph.astream(  # type: ignore[call-overload]
             input=dict(question=ask_request.question),
             config=dict(
