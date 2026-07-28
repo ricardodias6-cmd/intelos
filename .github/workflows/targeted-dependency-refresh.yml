@@ -1,0 +1,103 @@
+name: Targeted dependency refresh
+
+on:
+  pull_request:
+    branches:
+      - agent/import-open-notebook
+    paths:
+      - .github/workflows/targeted-dependency-refresh.yml
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "0.8.22"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/knowledge-engine/frontend/package-lock.json
+
+      - name: Apply minimum Python security constraints
+        working-directory: services/knowledge-engine
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("pyproject.toml")
+          text = path.read_text()
+          old = 'override-dependencies = ["pillow>=12.2.0"]'
+          new = '''override-dependencies = [
+              "pillow>=12.2.0",
+              "click>=8.3.3",
+              "lxml-html-clean>=0.4.5",
+              "pyasn1>=0.6.4",
+          ]'''
+          if old not in text:
+              raise SystemExit("Expected override-dependencies line was not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          uv lock \
+            --upgrade-package click \
+            --upgrade-package lxml-html-clean \
+            --upgrade-package pyasn1
+
+      - name: Apply minimum npm security updates
+        working-directory: services/knowledge-engine/frontend
+        run: |
+          npm pkg set 'dependencies.next=^16.2.11'
+          npm pkg set 'overrides.postcss=8.5.18'
+          npm install --package-lock-only --ignore-scripts
+
+          set +e
+          npm audit --omit=dev --json > npm-audit-after-primary.json
+          audit_status=$?
+          set -e
+
+          if jq -e '.vulnerabilities.sharp' npm-audit-after-primary.json >/dev/null; then
+            npm pkg set 'overrides.sharp=0.35.0'
+            npm install --package-lock-only --ignore-scripts
+          fi
+
+          npm audit --omit=dev --json > npm-audit-final.json || true
+
+      - name: Capture targeted diff
+        run: |
+          git diff -- \
+            services/knowledge-engine/pyproject.toml \
+            services/knowledge-engine/uv.lock \
+            services/knowledge-engine/frontend/package.json \
+            services/knowledge-engine/frontend/package-lock.json \
+            > targeted-dependency-refresh.diff
+          git diff --stat > targeted-dependency-refresh.stat
+
+      - name: Upload refreshed dependency files
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-dependency-refresh
+          if-no-files-found: error
+          path: |
+            services/knowledge-engine/pyproject.toml
+            services/knowledge-engine/uv.lock
+            services/knowledge-engine/frontend/package.json
+            services/knowledge-engine/frontend/package-lock.json
+            services/knowledge-engine/frontend/npm-audit-after-primary.json
+            services/knowledge-engine/frontend/npm-audit-final.json
+            targeted-dependency-refresh.diff
+            targeted-dependency-refresh.stat
