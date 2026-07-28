@@ -153,7 +153,9 @@ def build_evidence_blocks(
 
         if not provenance_items:
             block_text = text
-            identity = f"{version_hash}:none:{item_index}:0:{block_text}"
+            identity = (
+                f"{source_id}:{version_hash}:none:{item_index}:0:{block_text}"
+            )
             blocks.append(
                 EvidenceBlock(
                     evidence_id=f"EV-{_sha256_text(identity)[:24].upper()}",
@@ -177,7 +179,7 @@ def build_evidence_blocks(
             pdf_page = int(page_no) if isinstance(page_no, int) and page_no >= 1 else None
             bbox = _bbox_from_provenance(provenance)
             identity = (
-                f"{version_hash}:{pdf_page}:{item_index}:"
+                f"{source_id}:{version_hash}:{pdf_page}:{item_index}:"
                 f"{provenance_index}:{block_text}"
             )
             blocks.append(
