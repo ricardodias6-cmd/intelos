@@ -83,6 +83,7 @@ jobs:
       run:
         working-directory: services/knowledge-engine
     env:
+      INTELOS_RUN_SURREAL_INTEGRATION: "1"
       SURREAL_URL: ws://127.0.0.1:8000/rpc
       SURREAL_USER: root
       SURREAL_PASSWORD: intelos-ci-migration-password
