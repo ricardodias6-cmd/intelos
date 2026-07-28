@@ -96,4 +96,9 @@ ignore = [
 # moviepy only touches PIL in its video modules, which the audio-only podcast
 # pipeline never imports. Drop this override once podcast-creator ships a
 # release without moviepy (already removed on its main branch).
-override-dependencies = ["pillow>=12.2.0"]
+override-dependencies = [
+    "pillow>=12.2.0",
+    "click>=8.3.3",
+    "lxml-html-clean>=0.4.5",
+    "pyasn1>=0.6.4",
+]
