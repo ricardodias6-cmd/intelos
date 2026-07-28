@@ -16,6 +16,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
   pull_request:
     paths:
@@ -29,6 +30,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
 
 concurrency:
@@ -73,6 +75,7 @@ jobs:
           tests/test_evidence_core.py
           tests/test_docling_evidence_adapter.py
           tests/test_evidence_migration_integration.py
+          tests/test_evidence_retrieval.py
           tests/test_evidence_retrieval_integration.py
 
       - name: Run Evidence Core unit tests
@@ -80,6 +83,7 @@ jobs:
           uv run pytest
           tests/test_evidence_core.py
           tests/test_docling_evidence_adapter.py
+          tests/test_evidence_retrieval.py
 
   migration-integration:
     needs: test
