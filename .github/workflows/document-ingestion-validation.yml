@@ -81,6 +81,15 @@ jobs:
           docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml logs --no-color
           exit 1
 
+      - name: Install Phase 1 test runtime
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+            exec -T open_notebook \
+            /bin/uv pip install \
+            --python /app/.venv/bin/python \
+            "pytest>=9.0.3" \
+            "pytest-asyncio>=1.2.0"
+
       - name: Ingest realistic Portuguese PDF
         run: |
           docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
