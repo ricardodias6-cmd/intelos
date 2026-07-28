@@ -9,10 +9,10 @@ import os
 import sys
 from pathlib import Path
 
-# Ensure password auth is disabled for tests BEFORE any imports
-# The PasswordAuthMiddleware skips auth when this env var is not set
-# Set to empty string instead of deleting to prevent it from being reloaded
+# Tests may run without a password only through an explicit opt-out. Production
+# and ordinary local runs fail closed when OPEN_NOTEBOOK_PASSWORD is absent.
 os.environ["OPEN_NOTEBOOK_PASSWORD"] = ""
+os.environ["OPEN_NOTEBOOK_ALLOW_NO_AUTH"] = "true"
 
 # Load environment variables from .env file
 # This must be done BEFORE any imports that depend on environment variables
