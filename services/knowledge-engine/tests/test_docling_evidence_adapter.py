@@ -5,6 +5,7 @@ from enum import StrEnum
 from types import SimpleNamespace
 
 from open_notebook.evidence.docling_adapter import build_evidence_blocks
+from open_notebook.evidence.models import CoordinateOrigin
 
 
 class Label(StrEnum):
@@ -13,8 +14,21 @@ class Label(StrEnum):
     TEXT = "text"
 
 
-def _bbox(*, left: float, top: float, right: float, bottom: float):
-    return SimpleNamespace(l=left, t=top, r=right, b=bottom)
+def _bbox(
+    *,
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+    origin: str = "TOPLEFT",
+):
+    return SimpleNamespace(
+        l=left,
+        t=top,
+        r=right,
+        b=bottom,
+        coord_origin=origin,
+    )
 
 
 @dataclass
@@ -116,7 +130,46 @@ def test_blocks_preserve_page_bbox_type_and_section_path():
         "y0": 120.0,
         "x1": 500.0,
         "y1": 180.0,
+        "coordinate_origin": CoordinateOrigin.TOP_LEFT,
     }
+
+
+def test_bottom_left_coordinates_are_normalized_and_origin_is_preserved():
+    document = FakeDocument(
+        [
+            (
+                FakeItem(
+                    label=Label.TEXT,
+                    text="Passagem com origem inferior.",
+                    prov=[
+                        FakeProvenance(
+                            page_no=4,
+                            bbox=_bbox(
+                                left=25,
+                                top=700,
+                                right=500,
+                                bottom=650,
+                                origin="BOTTOMLEFT",
+                            ),
+                            charspan=[0, 30],
+                        )
+                    ],
+                ),
+                1,
+            )
+        ]
+    )
+
+    block = build_evidence_blocks(
+        document=document,
+        source_id="source:bottomleft",
+        version_hash="f" * 64,
+    )[0]
+
+    assert block.bbox is not None
+    assert block.bbox.y0 == 650
+    assert block.bbox.y1 == 700
+    assert block.bbox.coordinate_origin == CoordinateOrigin.BOTTOM_LEFT
 
 
 def test_provenance_charspan_splits_multi_page_text():
