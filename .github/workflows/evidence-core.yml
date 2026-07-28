@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/evidence-core-foundation
+      - agent/phase-2
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/open_notebook/evidence/**
@@ -11,9 +12,11 @@ on:
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -22,9 +25,11 @@ on:
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -68,6 +73,7 @@ jobs:
           tests/test_evidence_core.py
           tests/test_docling_evidence_adapter.py
           tests/test_evidence_migration_integration.py
+          tests/test_evidence_retrieval_integration.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -84,6 +90,7 @@ jobs:
         working-directory: services/knowledge-engine
     env:
       INTELOS_RUN_SURREAL_INTEGRATION: "1"
+      INTELOS_RUN_EVIDENCE_RETRIEVAL: "1"
       SURREAL_URL: ws://127.0.0.1:8000/rpc
       SURREAL_USER: root
       SURREAL_PASSWORD: intelos-ci-migration-password
@@ -134,8 +141,11 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migration 24, rollback and reapplication
+      - name: Test migrations 24 and 25
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
+
+      - name: Test hybrid evidence retrieval end to end
+        run: uv run pytest tests/test_evidence_retrieval_integration.py -vv
 
       - name: Record SurrealDB logs
         if: always()
