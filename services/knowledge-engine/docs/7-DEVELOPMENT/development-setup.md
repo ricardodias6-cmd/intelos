@@ -36,7 +36,7 @@ SURREAL_PASSWORD=<long-random-password>
 
 Do not commit `.env`.
 
-Authentication fails closed when the password is absent. `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is reserved for isolated tests and must not become a normal developer default.
+Authentication fails closed when the password is absent. `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is reserved for controlled tests or isolated local development and must not become a normal developer default.
 
 ## Locked dependencies
 
@@ -103,7 +103,7 @@ OPEN_NOTEBOOK_WORKER_MAX_TASKS=1 \
 
 ```bash
 cd frontend
-HOSTNAME=127.0.0.1 PORT=8502 npm run dev
+npm run dev -- --hostname 127.0.0.1 --port 8502
 ```
 
 Open `http://127.0.0.1:8502` and sign in with `OPEN_NOTEBOOK_PASSWORD`.
@@ -132,15 +132,16 @@ Avoid exposing secrets through shared shell history or logs.
 ```bash
 uv run ruff check .
 uv run pytest
-uv run pip-audit
 ```
+
+The Python dependency audit is performed by the authoritative GitHub Actions workflow against the locked virtual environment.
 
 ## Frontend quality checks
 
 ```bash
 cd frontend
 npm run lint
-npm test -- --run
+npm test
 npm run build
 npm audit --omit=dev --audit-level=high
 ```
