@@ -11,13 +11,16 @@ import pytest
 
 from open_notebook.database.async_migrate import AsyncMigrationManager
 from open_notebook.database.repository import ensure_record_id, repo_query
+from open_notebook.domain.evidence import ClaimRecord
 from open_notebook.evidence.docling_adapter import StructuredDocumentExtraction
 from open_notebook.evidence.ingestion import persist_structured_extraction
 from open_notebook.evidence.models import (
     BoundingBox,
+    ClaimKind,
     CoordinateOrigin,
     EvidenceBlock,
     ExtractionMethod,
+    SupportStatus,
     VerificationStatus,
 )
 
@@ -131,6 +134,51 @@ async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None
             source_id="source:evidence_test",
             extraction=_structured_extraction(ocr_enabled=True),
         )
+
+    claim = ClaimRecord(
+        claim_id="CLM-INTEGRATION-001",
+        text="A migração preserva uma passagem verificável.",
+        claim_kind=ClaimKind.FACT,
+        support_status=SupportStatus.DIRECT,
+        render_as_definitive=True,
+    )
+    await claim.save()
+    assert claim.id is not None
+
+    await claim.link_evidence(
+        blocks[0]["id"],
+        relation_type=SupportStatus.DIRECT,
+    )
+    assert len(await repo_query("SELECT * FROM claim_evidence;")) == 1
+
+    await repo_query(
+        "DELETE $evidence;",
+        {"evidence": ensure_record_id(blocks[0]["id"])},
+    )
+    assert await repo_query("SELECT * FROM evidence_block;") == []
+    assert await repo_query("SELECT * FROM claim_evidence;") == []
+
+    resumed = await persist_structured_extraction(
+        source_id="source:evidence_test",
+        extraction=extraction,
+    )
+    assert resumed.created_version is False
+    assert resumed.created_blocks == 1
+    assert resumed.existing_blocks == 0
+
+    recreated_blocks = await repo_query("SELECT * FROM evidence_block;")
+    assert len(recreated_blocks) == 1
+    await claim.link_evidence(
+        recreated_blocks[0]["id"],
+        relation_type=SupportStatus.DIRECT,
+    )
+    assert len(await repo_query("SELECT * FROM claim_evidence;")) == 1
+
+    await repo_query(
+        "DELETE $claim;",
+        {"claim": ensure_record_id(claim.id)},
+    )
+    assert await repo_query("SELECT * FROM claim_evidence;") == []
 
     await repo_query(
         "DELETE $version;",
