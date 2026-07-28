@@ -26,6 +26,37 @@ def test_lexical_score_rewards_exact_phrase() -> None:
     assert 0 <= exact <= 1
 
 
+def test_lexical_score_rewards_concrete_temporal_answer() -> None:
+    query = "Qual é o prazo para decidir a autorização?"
+    concrete = "O pedido de autorização deve ser decidido no prazo de 24 horas."
+    generic = "O responsável confirma a autorização antes da execução da medida."
+
+    assert lexical_score(query, concrete) > lexical_score(query, generic)
+
+
+def test_numeric_bonus_is_not_applied_to_unrelated_queries() -> None:
+    query = "Quem confirma a autorização?"
+    relevant = "O responsável confirma a autorização antes da execução da medida."
+    numeric_but_generic = "A autorização é arquivada durante 24 horas."
+
+    assert lexical_score(query, relevant) > lexical_score(query, numeric_but_generic)
+
+
+def test_semantic_similarity_distinguishes_direct_and_generic_matches() -> None:
+    query = [1.0, 0.0, 0.0]
+    direct_answer = [1.0, 0.0, 0.0]
+    generic_topic_match = [0.70, 0.70, 0.0]
+    unrelated = [0.0, 0.0, 1.0]
+
+    assert cosine_similarity(query, direct_answer) == pytest.approx(1.0)
+    assert cosine_similarity(query, direct_answer) > cosine_similarity(
+        query, generic_topic_match
+    )
+    assert cosine_similarity(query, generic_topic_match) > cosine_similarity(
+        query, unrelated
+    )
+
+
 def test_cosine_similarity_handles_invalid_and_identical_vectors() -> None:
     assert cosine_similarity([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
     assert cosine_similarity([1.0], [1.0, 0.0]) == 0.0
