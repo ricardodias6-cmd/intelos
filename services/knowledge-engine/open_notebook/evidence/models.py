@@ -21,6 +21,12 @@ class ExtractionMethod(StrEnum):
     MANUAL = "manual"
 
 
+class CoordinateOrigin(StrEnum):
+    TOP_LEFT = "TOPLEFT"
+    BOTTOM_LEFT = "BOTTOMLEFT"
+    UNKNOWN = "UNKNOWN"
+
+
 class VerificationStatus(StrEnum):
     UNVERIFIED = "unverified"
     AUTOMATICALLY_VERIFIED = "automatically_verified"
@@ -67,7 +73,7 @@ class IssueSeverity(StrEnum):
 
 
 class BoundingBox(BaseModel):
-    """Coordinates on the rendered page, in the page coordinate system."""
+    """Normalized rectangle with its original page-coordinate origin."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -75,6 +81,7 @@ class BoundingBox(BaseModel):
     y0: float = Field(ge=0)
     x1: float = Field(gt=0)
     y1: float = Field(gt=0)
+    coordinate_origin: CoordinateOrigin = CoordinateOrigin.TOP_LEFT
 
     @model_validator(mode="after")
     def validate_geometry(self) -> "BoundingBox":
