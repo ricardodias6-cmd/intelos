@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.evidence.docling_adapter import extract_with_docling_evidence
 from open_notebook.evidence.ingestion import persist_structured_extraction
+from open_notebook.evidence.models import EvidenceBlock
 
 pytestmark = pytest.mark.skipif(
     os.getenv("INTELOS_RUN_DOCUMENT_INGESTION") != "1",
@@ -59,7 +61,6 @@ def _page_stream(lines: list[tuple[int, int, int, str]]) -> bytes:
 
 def _build_pdf(path: Path) -> bytes:
     """Write a deterministic, valid three-page PDF with realistic structures."""
-
     pages = [
         _page_stream(
             [
@@ -109,11 +110,10 @@ def _build_pdf(path: Path) -> bytes:
         objects.append(obj)
         return len(objects)
 
-    font_id = add(
+    add(
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
         b"/Encoding /WinAnsiEncoding >>"
     )
-    pages_id = 2
     page_ids: list[int] = []
     content_ids: list[int] = []
     for stream in pages:
@@ -138,7 +138,6 @@ def _build_pdf(path: Path) -> bytes:
         + b" ] >>",
     )
 
-    # Inserting /Pages at object 2 shifts every previously allocated object >=2.
     shifted_page_ids = [page_id + 1 for page_id in page_ids]
     shifted_content_ids = [content_id + 1 for content_id in content_ids]
     kids = b" ".join(f"{page_id} 0 R".encode() for page_id in shifted_page_ids)
@@ -182,7 +181,10 @@ def _build_pdf(path: Path) -> bytes:
     return data
 
 
-def _blocks_for_anchor(blocks, anchor: str):
+def _blocks_for_anchor(
+    blocks: Sequence[EvidenceBlock],
+    anchor: str,
+) -> list[EvidenceBlock]:
     return [block for block in blocks if anchor in block.raw_text]
 
 
@@ -239,7 +241,9 @@ async def test_01_ingest_realistic_portuguese_pdf(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_02_verify_stable_evidence_after_database_restart(tmp_path: Path) -> None:
+async def test_02_verify_stable_evidence_after_database_restart(
+    tmp_path: Path,
+) -> None:
     pdf_path = tmp_path / "regulamento-validacao-documental.pdf"
     _build_pdf(pdf_path)
     extraction = await extract_with_docling_evidence(
