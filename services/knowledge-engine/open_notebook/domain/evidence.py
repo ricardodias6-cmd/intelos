@@ -115,7 +115,7 @@ class EvidenceBlockRecord(EvidenceObjectModel):
     pdf_page: Optional[int] = None
     printed_page: Optional[str] = None
     section_path: Optional[list[str]] = None
-    bbox: Optional[dict[str, float]] = None
+    bbox: Optional[dict[str, Any]] = None
     block_type: str = "text"
     extraction_method: ExtractionMethod
     verification_status: VerificationStatus = VerificationStatus.UNVERIFIED
