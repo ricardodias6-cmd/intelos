@@ -1,374 +1,226 @@
-# Docker Compose Installation (Recommended)
+# Docker Compose Installation
 
-Multi-container setup with separate services. **Best for most users.**
+This is the canonical installation method for the Intelos Knowledge Engine.
 
-> **Alternative Registry:** All images are available on both Docker Hub (`lfnovo/open_notebook`) and GitHub Container Registry (`ghcr.io/lfnovo/open-notebook`). Use GHCR if Docker Hub is blocked or you prefer GitHub-native workflows.
+It builds the application from the repository, requires explicit secrets and limits published ports to the local machine.
+
+## Scope
+
+The configuration is approved only for local, single-user, personal and development use.
+
+It is not approved for public internet exposure or production deployment. Review the [residual risks](../../../../docs/security/knowledge-engine-residual-risks.md) before use.
 
 ## Prerequisites
 
-- **Docker Desktop** installed ([Download](https://www.docker.com/products/docker-desktop/))
-- **5-10 minutes** of your time
-- **API key** for at least one AI provider (OpenAI recommended for beginners)
+- Docker Desktop or Docker Engine with Docker Compose
+- Git
+- a terminal with access to the repository
 
-## Step 1: Get docker-compose.yml (1 min)
+## 1. Open the service directory
 
-**Option A: Download from repository**
 ```bash
-curl -o docker-compose.yml https://raw.githubusercontent.com/lfnovo/open-notebook/main/docker-compose.yml
+cd services/knowledge-engine
 ```
 
-**Option B: Use the official file from the repo**
+## 2. Create `.env`
 
-The official `docker-compose.yml` is in the root of our repository: [View on GitHub](https://github.com/lfnovo/open-notebook/blob/main/docker-compose.yml)
-
-Copy that file to your project folder.
-
-**Option C: Create manually**
-
-Create a file called `docker-compose.yml` with this content:
-
-```yaml
-services:
-  surrealdb:
-    image: surrealdb/surrealdb:v2
-    # Credentials default to root:root for a zero-config local setup. Before
-    # exposing this instance to a network, set SURREAL_USER / SURREAL_PASSWORD
-    # in a .env file (see .env.example) — they are applied here and to the
-    # open_notebook service below, so the two always stay in sync.
-    # List (exec) form so each interpolated value stays a single argument —
-    # a password containing spaces would otherwise be split into several.
-    command: ["start", "--log", "info", "--user", "${SURREAL_USER:-root}", "--pass", "${SURREAL_PASSWORD:-root}", "rocksdb:/mydata/mydatabase.db"]
-    user: root  # Required for bind mounts on Linux
-    ports:
-      # Bound to localhost only: the open_notebook service reaches this over
-      # the internal compose network regardless, so the host port is purely
-      # for local debugging (e.g. Surrealist, `surreal sql`). Exposing this
-      # on 0.0.0.0 would let anyone who can reach the host connect with the
-      # default root:root credentials.
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - ./surreal_data:/mydata
-    environment:
-      - SURREAL_EXPERIMENTAL_GRAPHQL=true
-    restart: always
-    pull_policy: always
-
-  open_notebook:
-    image: lfnovo/open_notebook:v1-latest
-    ports:
-      - "8502:8502"  # Web UI
-      - "5055:5055"  # REST API
-    environment:
-      # REQUIRED: Change this to your own secret string
-      # This encrypts your API keys in the database
-      - OPEN_NOTEBOOK_ENCRYPTION_KEY=change-me-to-a-secret-string
-
-      # Database connection. SURREAL_USER / SURREAL_PASSWORD default to root:root
-      # for local use; override them in a .env file before exposing the instance
-      # (the same values configure the surrealdb service above).
-      - SURREAL_URL=ws://surrealdb:8000/rpc
-      - SURREAL_USER=${SURREAL_USER:-root}
-      - SURREAL_PASSWORD=${SURREAL_PASSWORD:-root}
-      - SURREAL_NAMESPACE=open_notebook
-      - SURREAL_DATABASE=open_notebook
-    volumes:
-      - ./notebook_data:/app/data
-    depends_on:
-      - surrealdb
-    restart: always
-    pull_policy: always
+```bash
+cp .env.example .env
 ```
 
-**Edit the file:**
-- Replace `change-me-to-a-secret-string` with your own secret (any string works, e.g., `my-super-secret-key-123`)
-- (Optional) To use database credentials other than the default `root:root`, create a `.env` file next to `docker-compose.yml` with `SURREAL_USER=...` and `SURREAL_PASSWORD=...` — both services pick them up automatically ([.env.example](https://github.com/lfnovo/open-notebook/blob/main/.env.example) shows the full format)
+Fill every required value. Docker Compose deliberately rejects empty values.
 
----
+Example structure:
 
-## Step 2: Start Services (2 min)
+```dotenv
+OPEN_NOTEBOOK_ENCRYPTION_KEY=<long-random-secret>
+OPEN_NOTEBOOK_PASSWORD=<long-random-password>
+SURREAL_USER=intelos
+SURREAL_PASSWORD=<long-random-password>
+```
 
-Open terminal in the `open-notebook` folder:
+Generate random values with a trusted password manager or, where available:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Do not commit `.env`, print its contents into CI logs or reuse production credentials.
+
+## 3. Validate the resolved configuration
+
+```bash
+docker compose config
+```
+
+Confirm that:
+
+- no required variable is empty;
+- ports `8000`, `8502` and `5055` are bound to `127.0.0.1`;
+- the application uses `build:` and the local image `intelos-knowledge-engine:local`;
+- no `lfnovo/open_notebook:*` image is present.
+
+## 4. Build the application image
+
+```bash
+docker compose build open_notebook
+```
+
+The Dockerfile builds the frontend and backend from the checked-in source and locked dependencies.
+
+## 5. Start the stack
 
 ```bash
 docker compose up -d
 ```
 
-Wait 15-20 seconds for all services to start:
-```
-✅ surrealdb running on :8000
-✅ open_notebook running on :8502 (UI) and :5055 (API)
-```
+The stack contains:
 
-Check status:
+- `surrealdb`, bound to `127.0.0.1:8000`;
+- `open_notebook`, exposing the Web UI at `127.0.0.1:8502` and the API at `127.0.0.1:5055`.
+
+Inside the application container, supervisord starts the API, worker and frontend.
+
+## 6. Verify startup
+
 ```bash
 docker compose ps
+curl --fail http://127.0.0.1:5055/health
 ```
 
----
+Expected API response:
 
-## Step 3: Verify Installation (1 min)
-
-**API Health:**
-```bash
-curl http://localhost:5055/health
-# Should return: {"status": "healthy"}
+```json
+{"status":"healthy"}
 ```
 
-**Frontend Access:**
-Open browser to:
-```
-http://localhost:8502
-```
+Open:
 
-You should see the Open Notebook interface!
+`http://127.0.0.1:8502`
 
----
+Sign in with the value of `OPEN_NOTEBOOK_PASSWORD`.
 
-## Step 4: Configure AI Provider (2 min)
+## 7. Verify authentication
 
-1. Go to **Settings** → **API Keys**
-2. Click **Add Credential**
-3. Select your provider (e.g., OpenAI, Anthropic, Google)
-4. Give it a name, paste your API key
-5. Click **Save**
-6. Click **Test Connection** — should show success
-7. Click **Discover Models** → **Register Models**
-
-Your models are now available!
-
-> **Need an API key?** Get one from your chosen provider:
-> - **OpenAI**: https://platform.openai.com/api-keys
-> - **Anthropic**: https://console.anthropic.com/
-> - **Google**: https://aistudio.google.com/
-> - **Groq**: https://console.groq.com/
-
----
-
-## Step 5: First Notebook (2 min)
-
-1. Click **New Notebook**
-2. Name: "My Research"
-3. Description: "Getting started"
-4. Click **Create**
-
-Done! You now have a fully working Open Notebook instance.
-
----
-
-## Configuration
-
-### Adding Ollama (Free Local Models)
-
-Instead of manually editing, use our ready-made example:
+A protected route must reject an unauthenticated request:
 
 ```bash
-# Download the Ollama example
-curl -o docker-compose.yml https://raw.githubusercontent.com/lfnovo/open-notebook/main/examples/docker-compose-ollama.yml
-
-# Or copy from repo
-cp examples/docker-compose-ollama.yml docker-compose.yml
+curl --output /dev/null --write-out '%{http_code}\n' \
+  http://127.0.0.1:5055/api/notebooks
 ```
 
-See [examples/docker-compose-ollama.yml](../../examples/docker-compose-ollama.yml) for the complete setup.
+Expected status:
 
-**Manual setup:** Add this to your existing `docker-compose.yml`:
-
-```yaml
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
-    restart: always
-
-volumes:
-  ollama_models:
+```text
+401
 ```
 
-Then restart and pull a model:
+A valid bearer password should succeed:
+
 ```bash
-docker compose restart
-docker exec open-notebook-local-ollama-1 ollama pull mistral
+curl --fail \
+  --header "Authorization: Bearer ${OPEN_NOTEBOOK_PASSWORD}" \
+  http://127.0.0.1:5055/api/notebooks
 ```
 
-Configure Ollama in the Settings UI:
-1. Go to **Settings** → **API Keys**
-2. Click **Add Credential** → Select **Ollama**
-3. Enter base URL: `http://ollama:11434`
-4. Click **Save**, then **Test Connection**
-5. Click **Discover Models** → **Register Models**
+Run this command from a shell in which the password is already exported. Avoid adding secrets to shell history.
 
----
+## 8. Configure models
 
-## Environment Variables Reference
+In the Web UI:
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `OPEN_NOTEBOOK_ENCRYPTION_KEY` | Encryption key for credentials | `my-secret-key` |
-| `SURREAL_URL` | Database connection | `ws://surrealdb:8000/rpc` |
-| `SURREAL_USER` | Database user | `root` |
-| `SURREAL_PASSWORD` | Database password | `root` |
-| `SURREAL_NAMESPACE` | Database namespace | `open_notebook` |
-| `SURREAL_DATABASE` | Database name | `open_notebook` |
-| `API_URL` | API external URL | `http://localhost:5055` |
-| `OPEN_NOTEBOOK_EMBEDDING_BATCH_SIZE` | Override embedding batch size for stricter/local providers (recommended: `8` for CPU-only local setups) | `50` |
+1. add a provider credential;
+2. test the connection;
+3. discover and register models;
+4. select default language and embedding models.
 
-See [Environment Reference](../5-CONFIGURATION/environment-reference.md) for complete list.
+Provider credentials are encrypted with `OPEN_NOTEBOOK_ENCRYPTION_KEY`. Back up that key securely and separately from database backups.
 
----
+## Data persistence
 
-## Common Tasks
+The canonical Compose file uses bind mounts:
 
-### Stop Services
+- `./surreal_data:/mydata`
+- `./notebook_data:/app/data`
+
+A normal stop does not delete those directories:
+
 ```bash
 docker compose down
 ```
 
-### View Logs
+Starting again should preserve the database:
+
+```bash
+docker compose up -d
+```
+
+Before deleting either directory, create and verify a backup. Backup and restore procedures have not yet been validated as part of the current smoke test.
+
+## Updating the service
+
+The application image is built locally. Do not use `docker compose pull` as the application update process.
+
+After updating the repository:
+
+```bash
+docker compose down
+docker compose build open_notebook
+docker compose up -d
+```
+
+Review dependency changes, migrations and release notes before rebuilding.
+
+## Logs and diagnostics
+
 ```bash
 # All services
 docker compose logs -f
 
-# Specific service
-docker compose logs -f api
+# Application only
+docker compose logs -f open_notebook
+
+# Database only
+docker compose logs -f surrealdb
 ```
 
-### Restart Services
-```bash
-docker compose restart
-```
+## Port conflicts
 
-### Update to Latest Version
-```bash
-docker compose down
-docker compose pull
-docker compose up -d
-```
-
-### Remove All Data
-```bash
-docker compose down -v
-```
-
----
-
-## Troubleshooting
-
-### "Cannot connect to API" Error
-
-1. Check if Docker is running:
-```bash
-docker ps
-```
-
-2. Check if services are running:
-```bash
-docker compose ps
-```
-
-3. Check API logs:
-```bash
-docker compose logs api
-```
-
-4. Wait longer - services can take 20-30 seconds to start on first run
-
----
-
-### Port Already in Use
-
-If you get "Port 8502 already in use", change the port:
+Keep the host side bound to localhost when changing a port:
 
 ```yaml
 ports:
-  - "8503:8502"  # Use 8503 instead
-  - "5055:5055"  # Keep API port same
+  - "127.0.0.1:8503:8502"
 ```
 
-Then access at `http://localhost:8503`
+Do not change the binding to `8502:8502` or `0.0.0.0:8502:8502` without a separate network security review.
 
----
+## Authentication failure on startup
 
-### Credential Issues
+The application fails closed when authentication is not configured. Confirm that `.env` contains a non-empty `OPEN_NOTEBOOK_PASSWORD` and restart:
 
-1. Go to **Settings** → **API Keys**
-2. Click **Test Connection** on the credential
-3. If it fails, verify key at provider's website
-4. Check you have credits in your account
-5. Delete and re-create the credential if needed
-
----
-
-### Database Connection Issues
-
-Check SurrealDB is running:
 ```bash
-docker compose logs surrealdb
-```
-
-Reset database:
-```bash
-docker compose down -v
 docker compose up -d
 ```
 
-### Database Permission Denied (Linux)
+`OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` is intended only for isolated tests or local development and is not enabled by the canonical Compose file.
 
-If you see `Permission denied` or `Failed to create RocksDB directory` in SurrealDB logs:
+## Database credentials
 
-```bash
-docker compose logs surrealdb | grep -i permission
-```
+SurrealDB credentials are established when the database is first initialised. Changing only the values in `.env` does not constitute a validated credential-rotation procedure for an existing database.
 
-This happens because SurrealDB runs as a non-root user but Docker creates bind mount directories as root. Add `user: root` to the surrealdb service:
+Do not delete `surreal_data` merely to apply new credentials unless data loss is intended and a verified backup exists.
 
-```yaml
-surrealdb:
-  image: surrealdb/surrealdb:v2
-  user: root  # Fix for Linux bind mount permissions
-  # ... rest of config
-```
+## Network exposure
 
-Then restart:
-```bash
-docker compose down -v
-docker compose up -d
-```
+The current deployment should remain local.
 
----
+Do not:
 
-## Alternative Setups
+- publish the Web UI or API directly to a LAN or the internet;
+- publish SurrealDB beyond localhost;
+- add a reverse proxy for remote access;
+- rely on the single bearer password as enterprise authentication.
 
-Looking for different configurations? Check out our [examples/](../../examples/) folder:
-
-- **[Ollama Setup](../../examples/docker-compose-ollama.yml)** - Run local AI models (free, private)
-- **[Single Container](../../examples/docker-compose-single.yml)** - All-in-one container (deprecated, will be removed in v2)
-- **[Development](../../examples/docker-compose-dev.yml)** - For contributors and developers
-
-Each example includes detailed comments and usage instructions.
-
----
-
-## Next Steps
-
-1. **Add Content**: Sources, notebooks, documents
-2. **Configure Models**: Settings → Models (choose your preferences)
-3. **Explore Features**: Chat, search, transformations
-4. **Read Guide**: [User Guide](../3-USER-GUIDE/index.md)
-
----
-
-## Production Deployment
-
-For production use, see:
-- [Security Hardening](../5-CONFIGURATION/security.md)
-- [Reverse Proxy](../5-CONFIGURATION/reverse-proxy.md)
-
----
-
-## Getting Help
-
-- **Discord**: [Community support](https://discord.gg/37XJPXfz2w)
-- **Issues**: [GitHub Issues](https://github.com/lfnovo/open-notebook/issues)
-- **Docs**: [Full documentation](../index.md)
+Remote deployment requires TLS, restricted CORS, secure secret management, rate limiting, monitoring, backup and recovery controls, and a new security review.
