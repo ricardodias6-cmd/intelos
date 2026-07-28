@@ -10,6 +10,7 @@ from typing import Any
 
 from open_notebook.evidence.models import (
     BoundingBox,
+    CoordinateOrigin,
     EvidenceBlock,
     ExtractionMethod,
     VerificationStatus,
@@ -94,15 +95,28 @@ def _bbox_from_provenance(provenance: Any) -> BoundingBox | None:
     top = getattr(bbox, "t", None)
     right = getattr(bbox, "r", None)
     bottom = getattr(bbox, "b", None)
-    if None in {left, top, right, bottom}:
+    if any(value is None for value in (left, top, right, bottom)):
         return None
 
     try:
+        left_value = float(left)
+        top_value = float(top)
+        right_value = float(right)
+        bottom_value = float(bottom)
+        origin_value = _enum_value(
+            getattr(bbox, "coord_origin", None), CoordinateOrigin.TOP_LEFT.value
+        ).upper()
+        try:
+            coordinate_origin = CoordinateOrigin(origin_value)
+        except ValueError:
+            coordinate_origin = CoordinateOrigin.UNKNOWN
+
         return BoundingBox(
-            x0=float(left),
-            y0=float(top),
-            x1=float(right),
-            y1=float(bottom),
+            x0=min(left_value, right_value),
+            y0=min(top_value, bottom_value),
+            x1=max(left_value, right_value),
+            y1=max(top_value, bottom_value),
+            coordinate_origin=coordinate_origin,
         )
     except (TypeError, ValueError):
         return None
