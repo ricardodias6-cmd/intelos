@@ -70,7 +70,7 @@ Frontend:
 
 ```bash
 cd frontend
-HOSTNAME=127.0.0.1 PORT=8502 npm run dev
+npm run dev -- --hostname 127.0.0.1 --port 8502
 ```
 
 ## 6. Verify
@@ -95,9 +95,11 @@ uv run pytest
 
 cd frontend
 npm run lint
-npm test -- --run
+npm test
 npm run build
 ```
+
+The Python dependency audit is performed by the authoritative GitHub Actions workflow against the locked virtual environment.
 
 ## Rules
 
@@ -105,7 +107,7 @@ npm run build
 - use `npm ci` and `uv sync --frozen` for reproducible installs;
 - update lockfiles deliberately when changing dependencies;
 - never commit `.env`;
-- use `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` only in isolated tests;
+- use `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` only for controlled tests or isolated local development and never as the normal setup;
 - run the GitHub Actions validation before merging.
 
 For more detail, see [Development Setup](development-setup.md).
