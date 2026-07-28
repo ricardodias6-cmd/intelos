@@ -2,10 +2,11 @@
 
 This test requires a disposable SurrealDB instance configured through the
 standard SURREAL_* environment variables. The dedicated GitHub Actions job
-provides that instance.
+provides that instance and explicitly enables this module.
 """
 
 import hashlib
+import os
 
 import pytest
 
@@ -22,6 +23,14 @@ from open_notebook.evidence.models import (
     ExtractionMethod,
     SupportStatus,
     VerificationStatus,
+)
+
+pytestmark = pytest.mark.skipif(
+    os.getenv("INTELOS_RUN_SURREAL_INTEGRATION") != "1",
+    reason=(
+        "requires the dedicated disposable SurrealDB integration environment; "
+        "set INTELOS_RUN_SURREAL_INTEGRATION=1 only when that service is available"
+    ),
 )
 
 EVIDENCE_TABLES = {
