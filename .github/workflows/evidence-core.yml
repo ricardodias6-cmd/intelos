@@ -1,0 +1,146 @@
+name: Evidence Core
+
+on:
+  push:
+    branches:
+      - agent/evidence-core-foundation
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/database/async_migrate.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
+      - services/knowledge-engine/tests/test_evidence_migration_integration.py
+  pull_request:
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/database/async_migrate.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
+      - services/knowledge-engine/tests/test_evidence_migration_integration.py
+
+concurrency:
+  group: evidence-core-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Lint Evidence Core
+        run: >-
+          uv run ruff check
+          open_notebook/evidence
+          open_notebook/domain/evidence.py
+          open_notebook/graphs/source.py
+          open_notebook/database/async_migrate.py
+          tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
+          tests/test_evidence_migration_integration.py
+
+      - name: Run Evidence Core unit tests
+        run: >-
+          uv run pytest
+          tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
+
+  migration-integration:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+    env:
+      INTELOS_RUN_SURREAL_INTEGRATION: "1"
+      SURREAL_URL: ws://127.0.0.1:8000/rpc
+      SURREAL_USER: root
+      SURREAL_PASSWORD: intelos-ci-migration-password
+      SURREAL_NAMESPACE: intelos_ci
+      SURREAL_DATABASE: evidence_migration
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Start disposable SurrealDB
+        run: |
+          docker run --detach \
+            --name intelos-surreal-migration \
+            --publish 127.0.0.1:8000:8000 \
+            surrealdb/surrealdb:v2 \
+            start \
+            --log info \
+            --user "$SURREAL_USER" \
+            --pass "$SURREAL_PASSWORD" \
+            memory
+
+      - name: Wait for SurrealDB readiness
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "SurrealDB did not become ready within the allowed time."
+          docker logs intelos-surreal-migration
+          exit 1
+
+      - name: Test migration 24, rollback and reapplication
+        run: uv run pytest tests/test_evidence_migration_integration.py -vv
+
+      - name: Record SurrealDB logs
+        if: always()
+        run: docker logs intelos-surreal-migration || true
+
+      - name: Remove disposable SurrealDB
+        if: always()
+        run: docker rm --force intelos-surreal-migration || true

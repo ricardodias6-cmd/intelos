@@ -1,0 +1,25 @@
+-- Rollback Migration 24: Remove Intelos Evidence Core foundation
+
+REMOVE EVENT IF EXISTS intelos_claim_relation_delete ON TABLE claim;
+REMOVE EVENT IF EXISTS intelos_evidence_relation_delete ON TABLE evidence_block;
+REMOVE EVENT IF EXISTS intelos_document_version_evidence_delete ON TABLE document_version;
+REMOVE EVENT IF EXISTS intelos_source_evidence_delete ON TABLE source;
+
+REMOVE INDEX IF EXISTS idx_claim_evidence_block ON TABLE claim_evidence;
+REMOVE INDEX IF EXISTS idx_claim_evidence_claim ON TABLE claim_evidence;
+REMOVE INDEX IF EXISTS idx_claim_id ON TABLE claim;
+REMOVE INDEX IF EXISTS idx_evidence_verified_text ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_evidence_raw_text ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_evidence_page ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_evidence_version ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_evidence_source ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_evidence_id ON TABLE evidence_block;
+REMOVE INDEX IF EXISTS idx_document_version_unique ON TABLE document_version;
+REMOVE INDEX IF EXISTS idx_document_version_hash ON TABLE document_version;
+REMOVE INDEX IF EXISTS idx_document_version_source ON TABLE document_version;
+
+REMOVE TABLE IF EXISTS claim_evidence;
+REMOVE TABLE IF EXISTS claim;
+REMOVE TABLE IF EXISTS evidence_block;
+REMOVE TABLE IF EXISTS document_version;
+REMOVE ANALYZER IF EXISTS intelos_evidence_analyzer;
