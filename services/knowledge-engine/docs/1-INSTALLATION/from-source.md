@@ -1,195 +1,147 @@
 # From Source Installation
 
-Clone the repository and run locally. **For developers and contributors.**
+This route is for contributors and local development. The validated deployment route remains [Docker Compose](docker-compose.md).
 
 ## Prerequisites
 
-- **Python 3.11+** - [Download](https://www.python.org/)
-- **Node.js 18+** - [Download](https://nodejs.org/)
-- **Git** - [Download](https://git-scm.com/)
-- **Docker** (for SurrealDB) - [Download](https://docker.com/)
-- **uv** (Python package manager) - `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- API key from OpenAI or similar (or use Ollama for free)
+- Python 3.12
+- Node.js 22
+- Git
+- Docker with Docker Compose for SurrealDB
+- `uv`
 
-## Quick Setup (10 minutes)
+Use the versions defined by the repository and CI rather than older upstream version ranges.
 
-### 1. Clone Repository
+## 1. Open the imported service
 
-```bash
-git clone https://github.com/lfnovo/open-notebook.git
-cd open-notebook
-
-# If you forked it:
-git clone https://github.com/YOUR_USERNAME/open-notebook.git
-cd open-notebook
-git remote add upstream https://github.com/lfnovo/open-notebook.git
-```
-
-### 2. Install Python Dependencies
+From the Intelos repository:
 
 ```bash
-uv sync
-uv pip install python-magic
+cd services/knowledge-engine
 ```
 
-#### 2.1 Alternative: Conda Setup (Optional)
+Do not clone or substitute the upstream Open Notebook repository when validating Intelos changes.
 
-If you prefer using **Conda** to manage your environments, follow these steps instead of the standard `uv sync`:
-
-```bash
-# Create and activate the environment
-conda create -n open-notebook python=3.11 -y
-conda activate open-notebook
-
-# Install uv inside conda to maintain compatibility with the Makefile
-conda install -c conda-forge uv nodejs -y
-
-# Sync dependencies
-uv sync
-```
-
-> **Note**: Installing `uv` inside your Conda environment ensures that commands like `make start-all` and `make api` continue to work seamlessly.
-
-### 3. Start SurrealDB
-
-```bash
-# Terminal 1
-make database
-# or: docker compose up surrealdb
-```
-
-### 4. Set Environment Variables
+## 2. Create the environment file
 
 ```bash
 cp .env.example .env
-# Edit .env and set:
-# OPEN_NOTEBOOK_ENCRYPTION_KEY=my-secret-key
 ```
 
-After starting the app, configure AI providers via the **Manage → Models** UI in the browser.
+Define every required value:
 
-### 5. Start API
+```dotenv
+OPEN_NOTEBOOK_ENCRYPTION_KEY=<long-random-secret>
+OPEN_NOTEBOOK_PASSWORD=<long-random-password>
+SURREAL_USER=intelos
+SURREAL_PASSWORD=<long-random-password>
+```
+
+The application fails closed when the password is missing. Passwordless access is available only through `OPEN_NOTEBOOK_ALLOW_NO_AUTH=true` for controlled tests or isolated local development and should not be part of the normal setup.
+
+## 3. Install locked dependencies
 
 ```bash
-# Terminal 2
-make api
-# or: uv run --env-file .env uvicorn api.main:app --host 0.0.0.0 --port 5055
+uv sync --frozen
+cd frontend
+npm ci
+cd ..
 ```
 
-### 6. Start Worker
+Do not replace locked installation commands with unpinned package installation unless intentionally updating dependencies and lockfiles.
 
-Source and note processing (content extraction, embedding, insights) is dispatched
-as background jobs that a **separate worker** process consumes. Without it, every
-source stays stuck at `Source processing status: CommandStatus.NEW` forever.
+## 4. Start SurrealDB
+
+Use the canonical Compose service:
 
 ```bash
-# Terminal 3
-make worker
-# or: uv run --env-file .env surreal-commands-worker --import-modules commands
+docker compose up -d surrealdb
 ```
 
-> `make start-all` starts Database + API + Worker + Frontend together; the steps
-> above run them individually so you can see each process's logs.
+The database port remains bound to `127.0.0.1:8000`.
 
-### 7. Start Frontend
+## 5. Start the API
 
 ```bash
-# Terminal 4
-cd frontend && npm install && npm run dev
+uv run --env-file .env uvicorn api.main:app \
+  --host 127.0.0.1 --port 5055 --reload
 ```
 
-### 8. Access
+## 6. Start the worker
 
-- **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:5055/docs
-- **Database**: http://localhost:8000
-
-### 9. Configure AI Provider
-
-1. Open http://localhost:3000
-2. Go to **Manage** → **Models**
-3. Click **Add Credential** → Select your provider → Paste API key
-4. Click **Save**, then **Test Connection**
-5. Click **Discover Models** → **Register Models**
-
----
-
-## Development Workflow
-
-### Code Quality
+In another terminal:
 
 ```bash
-# Format and lint Python
-make ruff
-# or: ruff check . --fix
-
-# Type checking
-make lint
-# or: uv run python -m mypy .
+uv run --env-file .env \
+  surreal-commands-worker --import-modules commands
 ```
 
-### Run Tests
+For constrained local hardware:
 
 ```bash
-uv run pytest tests/
+OPEN_NOTEBOOK_WORKER_MAX_TASKS=1 \
+  uv run --env-file .env \
+  surreal-commands-worker --import-modules commands --max-tasks 1
 ```
 
-### Common Commands
+## 7. Start the frontend
+
+In another terminal:
 
 ```bash
-# Start everything
-make start-all
-
-# View API docs
-open http://localhost:5055/docs
-
-# Check database migrations
-# (Auto-run on API startup)
-
-# Clean up
-make clean
+cd frontend
+npm run dev -- --hostname 127.0.0.1 --port 8502
 ```
 
----
+Open:
 
-## Troubleshooting
+`http://127.0.0.1:8502`
 
-### Python version too old
+## 8. Verify
 
 ```bash
-python --version  # Check version
-uv sync --python 3.11  # Use specific version
+curl --fail http://127.0.0.1:5055/health
 ```
 
-### npm: command not found
+Confirm that a protected API request without credentials returns `401` and that the Web UI requires the configured password.
 
-Install Node.js from https://nodejs.org/
+## Quality checks
 
-### Database connection errors
+Backend:
 
 ```bash
-docker ps  # Check SurrealDB running
-docker logs surrealdb  # View logs
+uv run ruff check .
+uv run pytest
 ```
 
-### Port 5055 already in use
+Frontend:
 
 ```bash
-# Use different port
-uv run uvicorn api.main:app --port 5056
+cd frontend
+npm run lint
+npm test
+npm run build
 ```
 
----
+Dependency audits:
 
-## Next Steps
+```bash
+cd frontend
+npm audit --omit=dev --audit-level=high
+```
 
-1. Read [Development Guide](../7-DEVELOPMENT/quick-start.md)
-2. See [Architecture Overview](../7-DEVELOPMENT/architecture.md)
-3. Check [Contributing Guide](../7-DEVELOPMENT/contributing.md)
+The Python dependency audit is performed by the authoritative GitHub Actions workflow against the locked virtual environment.
 
----
+The GitHub Actions workflows remain the authoritative integration validation.
 
-## Getting Help
+## Network safety
 
-- **Discord**: [Community](https://discord.gg/37XJPXfz2w)
-- **Issues**: [GitHub Issues](https://github.com/lfnovo/open-notebook/issues)
+Keep development servers on localhost. Do not bind development reload servers to all interfaces or expose them through a reverse proxy.
+
+## Cleanup
+
+```bash
+docker compose down
+```
+
+This preserves the database directory. Remove data only after creating and verifying a backup or when deliberate data loss is acceptable.

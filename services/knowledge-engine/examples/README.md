@@ -1,166 +1,66 @@
-# Docker Compose Examples
+# Imported Docker Compose Examples
 
-This folder contains different `docker-compose.yml` configurations for various use cases.
+## Intelos status: reference only
 
-It also includes an [`easypanel`](./easypanel/) template that can be copied into
-the official EasyPanel templates repository and tested in the EasyPanel
-templates playground.
+The files in this directory were imported from the upstream Open Notebook snapshot for provenance and development reference.
 
-## 📋 Available Examples
+They are not approved Intelos deployment configurations and must not be copied over the canonical `services/knowledge-engine/docker-compose.yml`.
 
-### `docker-compose-full-local.yml` - 100% Local AI (No Cloud APIs) 🌟
-**Use this if:** You want complete privacy with zero external API dependencies
+The examples may contain one or more of the following incompatible assumptions:
 
-**Features:**
-- **Ollama**: Local LLM and embeddings (mistral, llama, etc.)
-- **Speaches**: Local TTS (text-to-speech) and STT (speech-to-text)
-- Everything runs on your machine - nothing sent to cloud
-- Perfect for privacy, offline work, or air-gapped environments
+- external mutable `lfnovo/open_notebook:*` images;
+- default or example database credentials;
+- application authentication that is absent or optional;
+- ports published beyond localhost;
+- optional services and images not covered by Intelos dependency audits;
+- single-container or cloud deployment routes that were not smoke-tested;
+- older Python, Node.js or package-installation instructions;
+- claims of complete privacy that do not account for model downloads, telemetry or external extraction services.
 
-**Setup:**
-1. Copy to your project folder as `docker-compose.yml`
-2. Run: `docker compose up -d`
-3. Download models (see file comments for commands)
-4. Configure all providers in UI (detailed instructions in file)
+## Supported alternative
 
-**Requirements:**
-- Minimum: 8GB RAM, 20GB disk, 4 CPU cores
-- Recommended: 16GB+ RAM, NVIDIA GPU (8GB+ VRAM), 50GB disk
+Start from:
 
-**Documentation:**
-- [Local TTS Guide](../docs/5-CONFIGURATION/local-tts.md)
-- [Local STT Guide](../docs/5-CONFIGURATION/local-stt.md)
+[Canonical Docker Compose Installation](../docs/1-INSTALLATION/docker-compose.md)
 
----
+Add optional services only through a reviewed Compose override that preserves:
 
-### `docker-compose-speaches.yml` - Local Speech Processing
-**Use this if:** You want free TTS/STT but use cloud LLMs
+- the local `intelos-knowledge-engine:local` build;
+- mandatory secrets from `.env`;
+- localhost-only host port bindings;
+- the existing SurrealDB credentials and data path;
+- `no-new-privileges` settings;
+- explicit documentation of any additional image, volume and network exposure.
 
-**Features:**
-- **Speaches**: Local text-to-speech and speech-to-text
-- Use with cloud LLM providers (OpenAI, Anthropic, etc.)
-- Great for podcast generation without TTS API costs
-- Private audio processing
+## Example status
 
-**Setup:**
-1. Copy to your project folder as `docker-compose.yml`
-2. Run: `docker compose up -d`
-3. Download speech models (see file for commands)
-4. Configure cloud LLM + local Speaches in UI
+| File or directory | Intelos status |
+|---|---|
+| `docker-compose-dev.yml` | Upstream development reference, not validated against the current Intelos workflow. |
+| `docker-compose-full-local.yml` | Unvalidated optional AI and speech stack. |
+| `docker-compose-ollama.yml` | Unvalidated Ollama integration. Use the local Ollama guide instead. |
+| `docker-compose-speaches.yml` | Unvalidated speech-service integration. |
+| `docker-compose-single.yml` | Unsupported single-container route. |
+| `easypanel/` | Unsupported public/cloud deployment template. |
 
-**Documentation:**
-- [Local TTS Guide](../docs/5-CONFIGURATION/local-tts.md)
-- [Local STT Guide](../docs/5-CONFIGURATION/local-stt.md)
+`docker-compose-single.yml` and the EasyPanel material must not be used as Intelos installation instructions.
 
----
+## Review requirements for optional services
 
-### `docker-compose-ollama.yml` - Free Local AI with Ollama
-**Use this if:** You want to run AI models locally without API costs
+Before an example or optional service can become supported, it needs:
 
-**Features:**
-- Includes Ollama service for local AI models
-- No external API keys needed (for LLM and embeddings)
-- Full privacy - everything runs on your machine
-- Great for testing or privacy-focused deployments
+1. image provenance and version pinning;
+2. dependency and image vulnerability scanning;
+3. explicit secret handling;
+4. localhost or private-network bindings;
+5. authentication and CORS validation;
+6. functional and persistence smoke tests;
+7. resource and licence documentation;
+8. an update and rollback procedure.
 
-**Setup:**
-1. Copy to your project folder as `docker-compose.yml`
-2. Run: `docker compose up -d`
-3. Pull a model: `docker exec open_notebook-ollama-1 ollama pull mistral`
-4. Configure in UI: Settings → API Keys → Add Ollama (URL: `http://ollama:11434`)
+See:
 
-**Recommended models:**
-- **LLM**: `mistral`, `llama3.1`, `qwen2.5`
-- **Embeddings**: `nomic-embed-text`, `mxbai-embed-large`
-
----
-
-### `docker-compose-single.yml` - Single Container (Deprecated)
-**Use this if:** You need all services in one container (not recommended)
-
-**⚠️ Deprecated:** We recommend using the standard multi-container setup (`docker-compose.yml` in root) for better reliability and easier troubleshooting.
-
-**Features:**
-- Single container includes SurrealDB, API, and Frontend
-- Simpler for very constrained environments
-- Less flexible for debugging and scaling
-
----
-
-### `docker-compose-dev.yml` - Development Setup
-**Use this if:** You're contributing to Open Notebook or developing custom features
-
-**Features:**
-- Hot-reload for code changes
-- Separate backend and frontend services
-- Build from source instead of using pre-built images
-- Includes development tools and debugging
-
-**Prerequisites:**
-- Python 3.11+
-- Node.js 18+
-- uv (Python package manager)
-
-**Setup:**
-See [Development Guide](../docs/7-DEVELOPMENT/index.md)
-
----
-
-## 🔄 How to Use These Examples
-
-1. **Choose** the example that fits your use case
-2. **Copy** the file to your project folder:
-   ```bash
-   cp examples/docker-compose-ollama.yml docker-compose.yml
-   ```
-3. **Edit** the `OPEN_NOTEBOOK_ENCRYPTION_KEY` value
-4. **Run** the services:
-   ```bash
-   docker compose up -d
-   ```
-
----
-
-## 💡 Need a Custom Setup?
-
-You can combine features from multiple examples. Common customizations:
-
-### Add Ollama to Standard Setup
-Add this to the main `docker-compose.yml`:
-
-```yaml
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
-    restart: always
-
-volumes:
-  ollama_models:
-```
-
-### Add Reverse Proxy
-See [Reverse Proxy Guide](../docs/5-CONFIGURATION/reverse-proxy.md)
-
-### Add Password Protection
-Add to `open_notebook` service environment:
-```yaml
-- OPEN_NOTEBOOK_PASSWORD=your-secure-password
-```
-
----
-
-## 📚 Documentation
-
-- [Installation Guide](../docs/1-INSTALLATION/index.md)
-- [Configuration Reference](../docs/5-CONFIGURATION/environment-reference.md)
-- [Troubleshooting](../docs/6-TROUBLESHOOTING/index.md)
-
----
-
-## 🆘 Need Help?
-
-- **Discord**: [Join our community](https://discord.gg/37XJPXfz2w)
-- **Issues**: [GitHub Issues](https://github.com/lfnovo/open-notebook/issues)
+- [Local Ollama](../docs/0-START-HERE/quick-start-local.md)
+- [External Ollama](../docs/0-START-HERE/quick-start-external-ollama.md)
+- [Security Configuration](../docs/5-CONFIGURATION/security.md)
+- [Residual Risks](../../../docs/security/knowledge-engine-residual-risks.md)
