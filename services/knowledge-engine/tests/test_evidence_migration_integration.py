@@ -5,10 +5,21 @@ standard SURREAL_* environment variables. The dedicated GitHub Actions job
 provides that instance.
 """
 
+import hashlib
+
 import pytest
 
 from open_notebook.database.async_migrate import AsyncMigrationManager
 from open_notebook.database.repository import repo_query
+from open_notebook.evidence.docling_adapter import StructuredDocumentExtraction
+from open_notebook.evidence.ingestion import persist_structured_extraction
+from open_notebook.evidence.models import (
+    BoundingBox,
+    CoordinateOrigin,
+    EvidenceBlock,
+    ExtractionMethod,
+    VerificationStatus,
+)
 
 EVIDENCE_TABLES = {
     "document_version",
@@ -36,6 +47,46 @@ def _assert_evidence_schema_absent(schema: str) -> None:
     assert EVIDENCE_ANALYZER not in schema
 
 
+def _structured_extraction(*, ocr_enabled: bool = False) -> StructuredDocumentExtraction:
+    raw_text = "A migração preserva uma passagem verificável."
+    version_hash = "a" * 64
+    block = EvidenceBlock(
+        evidence_id="EV-INTEGRATION-001",
+        source_id="source:evidence_test",
+        document_version_hash=version_hash,
+        raw_text=raw_text,
+        pdf_page=1,
+        section_path=["Teste de integração"],
+        bbox=BoundingBox(
+            x0=10,
+            y0=20,
+            x1=300,
+            y1=80,
+            coordinate_origin=CoordinateOrigin.BOTTOM_LEFT,
+        ),
+        block_type="text",
+        extraction_method=ExtractionMethod.DOCLING,
+        verification_status=VerificationStatus.UNVERIFIED,
+        text_hash=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),
+    )
+    return StructuredDocumentExtraction(
+        content=raw_text,
+        title="Documento de teste",
+        identified_type="application/pdf",
+        version_hash=version_hash,
+        page_count=1,
+        blocks=[block],
+        metadata={
+            "processor": "intelos_docling",
+            "docling_output_format": "markdown",
+            "evidence_blocks": 1,
+            "ocr_enabled": ocr_enabled,
+            "formula_enrichment_enabled": False,
+            "vision_enrichment_enabled": False,
+        },
+    )
+
+
 @pytest.mark.asyncio
 async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None:
     manager = AsyncMigrationManager()
@@ -47,6 +98,39 @@ async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None
     assert await manager.get_current_version() == 24
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
+
+    await repo_query(
+        "CREATE source:evidence_test SET title = 'Evidence migration integration';"
+    )
+    extraction = _structured_extraction()
+
+    first = await persist_structured_extraction(
+        source_id="source:evidence_test",
+        extraction=extraction,
+    )
+    second = await persist_structured_extraction(
+        source_id="source:evidence_test",
+        extraction=extraction,
+    )
+
+    assert first.created_version is True
+    assert first.created_blocks == 1
+    assert first.existing_blocks == 0
+    assert second.created_version is False
+    assert second.created_blocks == 0
+    assert second.existing_blocks == 1
+
+    versions = await repo_query("SELECT * FROM document_version;")
+    blocks = await repo_query("SELECT * FROM evidence_block;")
+    assert len(versions) == 1
+    assert len(blocks) == 1
+    assert blocks[0]["bbox"]["coordinate_origin"] == "BOTTOMLEFT"
+
+    with pytest.raises(RuntimeError, match="ocr_enabled"):
+        await persist_structured_extraction(
+            source_id="source:evidence_test",
+            extraction=_structured_extraction(ocr_enabled=True),
+        )
 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 23
