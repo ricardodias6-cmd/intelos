@@ -23,6 +23,27 @@ from open_notebook.exceptions import InvalidInputError
 from open_notebook.utils.embedding import generate_embedding, generate_embeddings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+_NUMBER_RE = re.compile(r"(?<!\w)\d+(?:[.,]\d+)?(?!\w)")
+_TEMPORAL_EXPRESSION_RE = re.compile(
+    r"(?<!\w)\d+(?:[.,]\d+)?\s*"
+    r"(?:segundos?|minutos?|horas?|dias?|semanas?|meses?|anos?)(?!\w)",
+    re.IGNORECASE,
+)
+_QUANTITY_QUERY_CUES = {
+    "quanto",
+    "quantos",
+    "quantas",
+    "prazo",
+    "duração",
+    "duracao",
+    "quando",
+    "data",
+    "hora",
+    "horas",
+    "dias",
+    "meses",
+    "anos",
+}
 
 
 class EvidenceSearchFilters(BaseModel):
@@ -70,8 +91,32 @@ def _tokens(text: str) -> list[str]:
     return [token.casefold() for token in _TOKEN_RE.findall(text)]
 
 
+def _ngrams(tokens: Sequence[str], size: int) -> set[tuple[str, ...]]:
+    if size < 1 or len(tokens) < size:
+        return set()
+    return {tuple(tokens[index : index + size]) for index in range(len(tokens) - size + 1)}
+
+
+def _answer_specificity_score(query_tokens: Sequence[str], text: str) -> float:
+    """Reward concrete numeric or temporal answers when the query asks for one."""
+
+    if not set(query_tokens) & _QUANTITY_QUERY_CUES:
+        return 0.0
+    if _TEMPORAL_EXPRESSION_RE.search(text):
+        return 1.0
+    if _NUMBER_RE.search(text):
+        return 0.6
+    return 0.0
+
+
 def lexical_score(query: str, text: str) -> float:
-    """Return a deterministic lexical score in the 0..1 interval."""
+    """Return a deterministic lexical score in the 0..1 interval.
+
+    Besides token overlap, the score rewards exact phrases, shared multi-word
+    expressions and concrete numeric or temporal answers to quantity-oriented
+    questions. This prevents a generic topical match from outranking the block
+    that contains the actual deadline, amount or duration being requested.
+    """
 
     query_tokens = _tokens(query)
     text_tokens = _tokens(text)
@@ -80,10 +125,26 @@ def lexical_score(query: str, text: str) -> float:
 
     query_set = set(query_tokens)
     text_set = set(text_tokens)
-    coverage = len(query_set & text_set) / len(query_set)
-    precision = len(query_set & text_set) / len(text_set)
-    phrase_bonus = 0.25 if query.casefold() in text.casefold() else 0.0
-    return min(1.0, (coverage * 0.65) + (precision * 0.10) + phrase_bonus)
+    common = query_set & text_set
+    coverage = len(common) / len(query_set)
+    precision = len(common) / len(text_set)
+    exact_phrase = 1.0 if query.casefold().strip() in text.casefold() else 0.0
+
+    query_bigrams = _ngrams(query_tokens, 2)
+    text_bigrams = _ngrams(text_tokens, 2)
+    bigram_overlap = (
+        len(query_bigrams & text_bigrams) / len(query_bigrams) if query_bigrams else 0.0
+    )
+    specificity = _answer_specificity_score(query_tokens, text)
+
+    score = (
+        (coverage * 0.45)
+        + (precision * 0.10)
+        + (bigram_overlap * 0.15)
+        + (exact_phrase * 0.15)
+        + (specificity * 0.20)
+    )
+    return min(1.0, score)
 
 
 def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
