@@ -1,214 +1,52 @@
-# Quick Start - Cloud AI Providers (5 minutes)
+# Quick Start: Cloud AI Providers
 
-Get Open Notebook running with **Anthropic, Google, Groq, or other cloud providers**. Same simplicity as OpenAI, with more choices.
+This guide covers Anthropic, Google, Groq, OpenRouter, Mistral and other supported cloud providers after the Intelos Knowledge Engine has been installed.
 
-## Prerequisites
+## 1. Install the base service
 
-1. **Docker Desktop** installed
-   - [Download here](https://www.docker.com/products/docker-desktop/)
-   - Already have it? Skip to step 2
+Follow [Docker Compose Installation](../1-INSTALLATION/docker-compose.md).
 
-2. **API Key** from your chosen provider:
-   - **OpenRouter** (100+ models, one key): https://openrouter.ai/keys
-   - **Anthropic (Claude)**: https://console.anthropic.com/
-   - **Google (Gemini)**: https://aistudio.google.com/
-   - **Groq** (fast, free tier): https://console.groq.com/
-   - **Mistral**: https://console.mistral.ai/
-   - **DeepSeek**: https://platform.deepseek.com/
-   - **xAI (Grok)**: https://console.x.ai/
+Use the checked-in Compose file, mandatory secrets and localhost-only port bindings. Do not copy upstream Compose examples or use mutable upstream application images.
 
-## Step 1: Create Configuration (1 min)
+## 2. Obtain a provider credential
 
-Create a new folder `open-notebook` and add this file:
+Create a key through the provider's official account portal and store it securely.
 
-**docker-compose.yml**:
-```yaml
-services:
-  surrealdb:
-    image: surrealdb/surrealdb:v2
-    command: start --user root --pass password rocksdb:/mydata/mydatabase.db
-    ports:
-      # Localhost only — the database uses default credentials, so never
-      # publish this port on 0.0.0.0
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - ./surreal_data:/mydata
-    # Removed the healthcheck because the v2 image is too minimal to run wget/curl
-    restart: always
+Before using sensitive content, review:
 
-  open_notebook:
-    image: lfnovo/open_notebook:v1-latest
-    pull_policy: always
-    ports:
-      - "8502:8502"  # Web UI
-      - "5055:5055"  # API
-    environment:
-      - OPEN_NOTEBOOK_ENCRYPTION_KEY=change-me-to-a-secret-string
-      - SURREAL_URL=ws://surrealdb:8000/rpc
-      - SURREAL_USER=root
-      - SURREAL_PASSWORD=password
-      - SURREAL_NAMESPACE=open_notebook
-      - SURREAL_DATABASE=open_notebook
-    volumes:
-      - ./notebook_data:/app/data
-    depends_on:
-      - surrealdb
-    restart: always
+- what source text is sent to the provider;
+- provider data retention and training settings;
+- account region and contractual terms;
+- rate limits and current pricing;
+- whether the selected model supports the required capability.
 
-```
+## 3. Add the credential
 
-**Edit the file:**
-- Replace `change-me-to-a-secret-string` with your own secret (any string works)
+In the Web UI:
 
----
+1. open the credential or model settings;
+2. choose the provider;
+3. enter the provider credential and any required endpoint;
+4. save and test the connection;
+5. discover and register models.
 
-## Step 2: Start Services (1 min)
+Stored provider credentials depend on `OPEN_NOTEBOOK_ENCRYPTION_KEY`. Keep that key backed up securely and separate from database backups.
 
-Open terminal in your `open-notebook` folder:
+## 4. Assign models
 
-```bash
-docker compose up -d
-```
+Select default models for the capabilities you intend to use, especially language generation and embeddings.
 
-Wait 15-20 seconds for services to start.
+A provider may offer language models but not embeddings, speech or other features. Mixed-provider configurations are supported, but each credential must be reviewed separately.
 
----
+## 5. Verify with disposable content
 
-## Step 3: Access Open Notebook (instant)
+Create a temporary notebook, add a short non-sensitive source and run a small request.
 
-Open your browser:
-```
-http://localhost:8502
-```
+Confirm that:
 
-You should see the Open Notebook interface!
+- the request succeeds;
+- the expected model is used;
+- costs and rate-limit behaviour are acceptable;
+- errors do not reveal credentials.
 
----
-
-## Step 4: Configure Your AI Provider (1 min)
-
-1. Go to **Settings** → **API Keys**
-2. Click **Add Credential**
-3. Select your provider (e.g., Anthropic, Google, Groq, OpenRouter)
-4. Give it a name, paste your API key
-5. Click **Save**
-6. Click **Test Connection** — should show success
-7. Click **Discover Models** → **Register Models**
-
-Your provider's models are now available!
-
-> **Multiple providers**: You can add credentials for as many providers as you want. Just repeat this step for each provider.
-
----
-
-## Step 5: Configure Your Model (1 min)
-
-1. Go to **Settings** (gear icon)
-2. Navigate to **Models**
-3. Select your provider's model:
-
-| Provider | Recommended Model | Notes |
-|----------|-------------------|-------|
-| **OpenRouter** | `anthropic/claude-3.5-sonnet` | Access 100+ models |
-| **Anthropic** | `claude-3-5-sonnet-latest` | Best reasoning |
-| **Google** | `gemini-3.5-flash` | Large context, fast |
-| **Groq** | `llama-3.3-70b-versatile` | Ultra-fast |
-| **Mistral** | `mistral-large-latest` | Strong European option |
-
-4. Click **Save**
-
----
-
-## Step 6: Create Your First Notebook (1 min)
-
-1. Click **New Notebook**
-2. Name: "My Research"
-3. Click **Create**
-
----
-
-## Step 7: Add Content & Chat (2 min)
-
-1. Click **Add Source**
-2. Choose **Web Link**
-3. Paste any article URL
-4. Wait for processing
-5. Go to **Chat** and ask questions!
-
----
-
-## Verification Checklist
-
-- [ ] Docker is running
-- [ ] You can access `http://localhost:8502`
-- [ ] Provider credential is configured and tested
-- [ ] Models are registered
-- [ ] You created a notebook
-- [ ] Chat works
-
-**All checked?** You're ready to research!
-
----
-
-## Provider Comparison
-
-| Provider | Speed | Quality | Context | Cost |
-|----------|-------|---------|---------|------|
-| **OpenRouter** | Varies | Varies | Varies | Varies (100+ models) |
-| **Anthropic** | Medium | Excellent | 200K | $$$ |
-| **Google** | Fast | Very Good | 1M+ | $$ |
-| **Groq** | Ultra-fast | Good | 128K | $ (free tier) |
-| **Mistral** | Fast | Good | 128K | $$ |
-| **DeepSeek** | Medium | Very Good | 64K | $ |
-
----
-
-## Troubleshooting
-
-### "Model not found" Error
-
-1. Go to **Settings** → **API Keys**
-2. Click **Test Connection** on your credential
-3. If valid, click **Discover Models** → **Register Models**
-4. Check you have credits/access for the model
-
-### "Cannot connect to server"
-
-```bash
-docker ps  # Check all services running
-docker compose logs  # View logs
-docker compose restart  # Restart everything
-```
-
-### Provider-Specific Issues
-
-**Anthropic**: Ensure key starts with `sk-ant-`
-**Google**: Use AI Studio key, not Cloud Console
-**Groq**: Free tier has rate limits; upgrade if needed
-
----
-
-## Cost Estimates
-
-Approximate costs per 1K tokens:
-
-| Provider | Input | Output |
-|----------|-------|--------|
-| Anthropic (Sonnet) | $0.003 | $0.015 |
-| Google (Flash) | $0.0001 | $0.0004 |
-| Groq (Llama 70B) | Free tier available | - |
-| Mistral (Large) | $0.002 | $0.006 |
-
-Check provider websites for current pricing.
-
----
-
-## Next Steps
-
-1. **Add Your Content**: PDFs, web links, documents
-2. **Explore Features**: Podcasts, transformations, search
-3. **Full Documentation**: [See all features](../3-USER-GUIDE/index.md)
-
----
-
-**Need help?** Join our [Discord community](https://discord.gg/37XJPXfz2w)!
+Provider names, model identifiers, prices and limits change frequently. Treat old examples as illustrative and consult current provider documentation.
