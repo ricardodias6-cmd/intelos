@@ -203,3 +203,38 @@ def test_items_without_provenance_are_preserved_but_not_given_a_fake_page():
     assert len(blocks) == 1
     assert blocks[0].pdf_page is None
     assert blocks[0].bbox is None
+
+
+def test_identical_document_blocks_are_scoped_to_their_source():
+    document = FakeDocument(
+        [
+            (
+                FakeItem(
+                    label=Label.TEXT,
+                    text="A mesma passagem pode existir em duas fontes.",
+                    prov=[
+                        FakeProvenance(
+                            page_no=1,
+                            bbox=_bbox(left=1, top=1, right=200, bottom=30),
+                            charspan=[0, 43],
+                        )
+                    ],
+                ),
+                1,
+            )
+        ]
+    )
+
+    first = build_evidence_blocks(
+        document=document,
+        source_id="source:first",
+        version_hash="e" * 64,
+    )
+    second = build_evidence_blocks(
+        document=document,
+        source_id="source:second",
+        version_hash="e" * 64,
+    )
+
+    assert first[0].raw_text == second[0].raw_text
+    assert first[0].evidence_id != second[0].evidence_id
