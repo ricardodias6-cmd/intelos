@@ -41,9 +41,11 @@ EVIDENCE_TABLES = {
     "claim_evidence",
 }
 EVIDENCE_ANALYZER = "intelos_evidence_analyzer"
-RETRIEVAL_SCHEMA_MARKERS = {
+RETRIEVAL_FIELDS = {
     "embedding_model",
     "embedded_text_hash",
+}
+RETRIEVAL_INDEXES = {
     "idx_evidence_source_version",
     "idx_evidence_version_page",
     "idx_evidence_block_type",
@@ -54,6 +56,11 @@ RETRIEVAL_SCHEMA_MARKERS = {
 async def _database_schema() -> str:
     """Return a stable textual representation of the database schema."""
     return repr(await repo_query("INFO FOR DB;"))
+
+
+async def _evidence_table_schema() -> str:
+    """Return evidence_block fields and indexes from the correct schema scope."""
+    return repr(await repo_query("INFO FOR TABLE evidence_block;"))
 
 
 def _assert_evidence_schema_present(schema: str) -> None:
@@ -68,14 +75,14 @@ def _assert_evidence_schema_absent(schema: str) -> None:
     assert EVIDENCE_ANALYZER not in schema
 
 
-def _assert_retrieval_schema_present(schema: str) -> None:
-    for marker in RETRIEVAL_SCHEMA_MARKERS:
-        assert marker in schema
+def _assert_retrieval_schema_present(table_schema: str) -> None:
+    for marker in RETRIEVAL_FIELDS | RETRIEVAL_INDEXES:
+        assert marker in table_schema
 
 
-def _assert_retrieval_schema_absent(schema: str) -> None:
-    for marker in RETRIEVAL_SCHEMA_MARKERS:
-        assert marker not in schema
+def _assert_retrieval_schema_absent(table_schema: str) -> None:
+    for marker in RETRIEVAL_FIELDS | RETRIEVAL_INDEXES:
+        assert marker not in table_schema
 
 
 def _structured_extraction(*, ocr_enabled: bool = False) -> StructuredDocumentExtraction:
@@ -128,9 +135,8 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     await manager.run_migration_up()
     assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
-    schema = await _database_schema()
-    _assert_evidence_schema_present(schema)
-    _assert_retrieval_schema_present(schema)
+    _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_present(await _evidence_table_schema())
 
     await repo_query(
         "CREATE source:evidence_test SET title = 'Evidence migration integration';"
@@ -220,9 +226,8 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 24
     assert await manager.needs_migration()
-    schema = await _database_schema()
-    _assert_evidence_schema_present(schema)
-    _assert_retrieval_schema_absent(schema)
+    _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_absent(await _evidence_table_schema())
 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 23
@@ -235,6 +240,5 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     await manager.runner.run_one_up()
     assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
-    schema = await _database_schema()
-    _assert_evidence_schema_present(schema)
-    _assert_retrieval_schema_present(schema)
+    _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_present(await _evidence_table_schema())
