@@ -11,8 +11,8 @@ from open_notebook.knowledge_graph import (
     KnowledgeEntity,
     KnowledgeGraphExtraction,
     KnowledgeRelation,
-    persistence,
     extraction,
+    persistence,
 )
 
 
@@ -87,7 +87,6 @@ def test_graph_rejects_entity_with_outside_evidence() -> None:
                 KnowledgeEntity(
                     entity_id="ENT_ONE",
                     canonical_name="Uma entidade",
-                    evidence_ids=["EV_ONE"],
                     evidence_ids=["EV_MISSING"],
                 )
             ],
@@ -105,6 +104,7 @@ def test_graph_rejects_relation_with_outside_evidence() -> None:
                 KnowledgeEntity(
                     entity_id="ENT_ONE",
                     canonical_name="Uma entidade",
+                    evidence_ids=["EV_ONE"],
                 ),
                 KnowledgeEntity(
                     entity_id="ENT_TWO",
