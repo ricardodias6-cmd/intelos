@@ -510,6 +510,7 @@ async def index_evidence_blocks(
             or not row.get("embedding")
             or row.get("embedded_text_hash") != _effective_text_hash(row)
             or row.get("embedding_model") != model_name
+            or row.get("indexing_status") == "failed"
         ]
         skipped += len(rows) - len(pending)
         if not pending:
@@ -523,25 +524,47 @@ async def index_evidence_blocks(
             )
             if len(embeddings) != len(pending):
                 raise RuntimeError("Embedding provider returned an unexpected batch size")
-            for row, embedding in zip(pending, embeddings, strict=True):
-                await repo_query(
-                    "UPDATE $id MERGE $data",
-                    {
-                        "id": ensure_record_id(str(row["id"])),
-                        "data": {
-                            "embedding": embedding,
-                            "embedding_model": model_name,
-                            "embedded_text_hash": _effective_text_hash(row),
-                            "indexing_status": "indexed",
-                            "indexing_error": None,
-                        },
-                    },
-                )
-            embedded += len(pending)
         except Exception as exc:
             failed += len(pending)
             await _mark_index_state(row_ids, "failed", str(exc)[:1000])
-            logger.exception("Evidence embedding batch failed")
+            logger.exception("Evidence embedding batch generation failed")
+        else:
+            completed_ids: list[str] = []
+            for row, embedding in zip(pending, embeddings, strict=True):
+                row_id = str(row["id"])
+                try:
+                    await repo_query(
+                        "UPDATE $id MERGE $data",
+                        {
+                            "id": ensure_record_id(row_id),
+                            "data": {
+                                "embedding": embedding,
+                                "embedding_model": model_name,
+                                "embedded_text_hash": _effective_text_hash(row),
+                                "indexing_status": "indexed",
+                                "indexing_error": None,
+                            },
+                        },
+                    )
+                except Exception as exc:
+                    remaining_ids = [
+                        str(item["id"])
+                        for item in pending
+                        if str(item["id"]) not in completed_ids
+                    ]
+                    failed += len(remaining_ids)
+                    await _mark_index_state(
+                        remaining_ids,
+                        "failed",
+                        str(exc)[:1000],
+                    )
+                    logger.exception(
+                        "Evidence embedding persistence failed after {} successful updates",
+                        len(completed_ids),
+                    )
+                    break
+                completed_ids.append(row_id)
+                embedded += 1
 
         if len(rows) < page_size:
             break
