@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from open_notebook.database.repository import ensure_record_id, repo_query, repo_upsert
 from open_notebook.evidence.models import ExtractionMethod
-from open_notebook.exceptions import InvalidInputError
+from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SOURCE_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_:-]{1,127}$")
@@ -65,6 +65,7 @@ class DocumentChangeType(StrEnum):
     NEW = "new"
     UNCHANGED = "unchanged"
     MODIFIED = "modified"
+    REVOKED = "revoked"
 
 
 class DocumentVersionCandidate(BaseModel):
@@ -162,6 +163,11 @@ class DocumentChange(BaseModel):
                 )
             if self.content_changed:
                 raise ValueError("unchanged documents cannot have content changes")
+        if self.change_type == DocumentChangeType.REVOKED:
+            if self.content_changed or self.metadata_changed:
+                raise ValueError("revoked documents cannot change content metadata")
+            if self.previous_version_hash != self.current_version_hash:
+                raise ValueError("revoked documents must preserve the version hash")
         if self.change_type == DocumentChangeType.MODIFIED:
             if (
                 self.previous_version_hash == self.current_version_hash
@@ -175,6 +181,216 @@ class DocumentChange(BaseModel):
                     "modified documents must identify a changed dimension"
                 )
         return self
+
+
+class ReprocessingStatus(StrEnum):
+    """Lifecycle state of one document reprocessing request."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ReprocessingReason(StrEnum):
+    """Reason that a document version requires maintenance."""
+
+    DOCUMENT_MODIFIED = "document_modified"
+    DOCUMENT_REVOKED = "document_revoked"
+    MANUAL_REVIEW = "manual_review"
+
+
+class DocumentReprocessingRequest(BaseModel):
+    """Idempotent request to rebuild downstream knowledge artifacts."""
+
+    request_id: str
+    source_id: str
+    document_version_id: str
+    reason: ReprocessingReason
+    status: ReprocessingStatus = ReprocessingStatus.PENDING
+    idempotency_key: str
+    priority: int = Field(default=50, ge=0, le=100)
+    attempt_count: int = Field(default=0, ge=0)
+    last_error: str | None = Field(default=None, max_length=2000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    requested_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    @field_validator("request_id", "idempotency_key")
+    @classmethod
+    def validate_stable_fields(cls, value: str) -> str:
+        return _validate_stable_id(value)
+
+    @field_validator("source_id")
+    @classmethod
+    def validate_source_id(cls, value: str) -> str:
+        return _validate_source_id(value)
+
+    @field_validator("document_version_id")
+    @classmethod
+    def validate_document_version_id(cls, value: str) -> str:
+        if not value or len(value) > 200:
+            raise ValueError("document_version_id must be a non-empty record identifier")
+        return value
+
+
+class DocumentRevocationResult(BaseModel):
+    """Result of an idempotent document-version revocation."""
+
+    version_id: str
+    source_id: str
+    previous_status: DocumentVersionStatus
+    status: DocumentVersionStatus
+    changed: bool
+    change_id: str
+    reprocessing_request_id: str
+
+
+def _maintenance_id(prefix: str, *values: str) -> str:
+    value = "|".join(values)
+    return f"{prefix}_{sha256(value.encode('utf-8')).hexdigest()[:32].upper()}"
+
+
+def build_reprocessing_request(
+    *,
+    source_id: str,
+    document_version_id: str,
+    reason: ReprocessingReason,
+    priority: int = 50,
+    metadata: dict[str, Any] | None = None,
+) -> DocumentReprocessingRequest:
+    """Build a stable request that can be safely enqueued repeatedly."""
+
+    request_id = _maintenance_id(
+        "REPROCESS",
+        source_id,
+        document_version_id,
+        reason.value,
+    )
+    return DocumentReprocessingRequest(
+        request_id=request_id,
+        source_id=source_id,
+        document_version_id=document_version_id,
+        reason=reason,
+        idempotency_key=request_id,
+        priority=priority,
+        metadata=metadata or {},
+    )
+
+
+async def enqueue_reprocessing(
+    request: DocumentReprocessingRequest,
+) -> DocumentReprocessingRequest:
+    """Upsert one reprocessing request without creating duplicates."""
+
+    data = request.model_dump(mode="python")
+    data["source"] = ensure_record_id(request.source_id)
+    data["document_version"] = ensure_record_id(request.document_version_id)
+    data.pop("source_id", None)
+    data.pop("document_version_id", None)
+    data["reason"] = request.reason.value
+    data["status"] = request.status.value
+    data["created"] = request.requested_at
+    data["updated"] = request.requested_at
+    await repo_upsert(
+        "document_reprocessing_request",
+        f"document_reprocessing_request:{request.request_id}",
+        data,
+    )
+    return request
+
+
+async def revoke_document_version(
+    version_id: str,
+    *,
+    reason: str,
+    priority: int = 80,
+    metadata: dict[str, Any] | None = None,
+) -> DocumentRevocationResult:
+    """Revoke a version and enqueue downstream review/reprocessing exactly once."""
+
+    if not reason.strip():
+        raise InvalidInputError("Revocation reason cannot be empty")
+
+    rows = await repo_query(
+        "SELECT * FROM $version LIMIT 1",
+        {"version": ensure_record_id(version_id)},
+    )
+    if not rows:
+        raise NotFoundError(f"Document version {version_id} not found")
+
+    row = rows[0]
+    source_id = str(row["source"])
+    version_hash = _validate_sha256(str(row["version_hash"]))
+    try:
+        previous_status = DocumentVersionStatus(
+            str(row.get("status") or DocumentVersionStatus.CURRENT.value)
+        )
+    except ValueError as exc:
+        raise InvalidInputError(
+            f"Unknown document version status for {version_id}"
+        ) from exc
+
+    changed = previous_status != DocumentVersionStatus.REVOKED
+    revoked_at = datetime.now(timezone.utc)
+    if changed:
+        await repo_query(
+            "UPDATE $version MERGE $data;",
+            {
+                "version": ensure_record_id(version_id),
+                "data": {
+                    "status": DocumentVersionStatus.REVOKED.value,
+                    "revoked_at": revoked_at,
+                    "revocation_reason": reason.strip(),
+                },
+            },
+        )
+
+    change_id = _maintenance_id(
+        "CHANGE_REVOKE",
+        version_id,
+        version_hash,
+        reason.strip(),
+    )
+    change = DocumentChange(
+        change_id=change_id,
+        source_id=source_id,
+        change_type=DocumentChangeType.REVOKED,
+        previous_version_id=version_id,
+        current_version_id=version_id,
+        previous_version_hash=version_hash,
+        current_version_hash=version_hash,
+        content_changed=False,
+        metadata_changed=False,
+        requires_reprocessing=True,
+        summary={
+            "changed_fields": ["status"],
+            "reason": reason.strip(),
+            "previous_status": previous_status.value,
+        },
+        detected_at=revoked_at,
+    )
+    await persist_document_change(change, current_version_id=version_id)
+
+    request = build_reprocessing_request(
+        source_id=source_id,
+        document_version_id=version_id,
+        reason=ReprocessingReason.DOCUMENT_REVOKED,
+        priority=priority,
+        metadata=metadata or {"revocation_reason": reason.strip()},
+    )
+    await enqueue_reprocessing(request)
+    return DocumentRevocationResult(
+        version_id=version_id,
+        source_id=source_id,
+        previous_status=previous_status,
+        status=DocumentVersionStatus.REVOKED,
+        changed=changed,
+        change_id=change_id,
+        reprocessing_request_id=request.request_id,
+    )
 
 
 def _change_id(
