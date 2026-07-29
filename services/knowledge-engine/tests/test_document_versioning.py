@@ -10,6 +10,7 @@ from open_notebook.evidence.versioning import (
     DocumentVersionCandidate,
     DocumentVersionSnapshot,
     detect_document_change,
+    revoke_document_version,
 )
 
 
