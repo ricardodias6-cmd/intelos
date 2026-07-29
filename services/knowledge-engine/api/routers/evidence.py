@@ -1,6 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from open_notebook.evidence.auditable_answer import (
+    AuditableAnswerRequest,
+    build_auditable_answer,
+)
+from open_notebook.evidence.auditable_models import AuditableAnswer
 from open_notebook.evidence.retrieval import (
     EvidenceIndexResult,
     EvidenceSearchFilters,
@@ -106,5 +111,18 @@ async def validate_claim_evidence(
             direct_threshold=request.direct_threshold,
             partial_threshold=request.partial_threshold,
         )
+    except InvalidInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/evidence/answer",
+    response_model=AuditableAnswer,
+)
+async def answer_with_evidence(
+    request: AuditableAnswerRequest,
+) -> AuditableAnswer:
+    try:
+        return await build_auditable_answer(request)
     except InvalidInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
