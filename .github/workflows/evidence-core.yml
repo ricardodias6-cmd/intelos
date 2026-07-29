@@ -112,7 +112,6 @@ jobs:
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
           tests/test_knowledge_graph.py
-          tests/test_knowledge_graph.py
 
       - name: Run Evidence Core unit tests
         run: >-
