@@ -308,3 +308,72 @@ async def test_contradicted_claim_is_not_rendered_as_fact(
     assert result.claims[0].confidence == 0
     assert result.claims[0].evidence_ids == ["EV_ONE"]
     assert result.requires_human_review is True
+
+
+@pytest.mark.asyncio
+async def test_rejected_claim_is_regenerated_from_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidates = [
+        CandidateAnswer(
+            answer="A autorização é desconhecida.",
+            claims=[
+                CandidateClaim(
+                    text="A afirmação não tem suporte.",
+                    evidence_ids=["EV_ONE"],
+                )
+            ],
+        ),
+        CandidateAnswer(
+            answer="A autorização compete à entidade competente.",
+            claims=[
+                CandidateClaim(
+                    text="A autorização compete à entidade competente.",
+                    evidence_ids=["EV_ONE"],
+                )
+            ],
+        ),
+    ]
+    provision_calls = 0
+
+    async def fake_retrieve(**kwargs: Any) -> EvidenceSearchResponse:
+        return _retrieval(_hit())
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _LanguageModel:
+        nonlocal provision_calls
+        provision_calls += 1
+        return _LanguageModel(candidates.pop(0))
+
+    async def fake_validate(**kwargs: Any) -> SemanticValidationResult:
+        if "não tem suporte" in kwargs["claim"]:
+            return _validation(
+                SupportStatus.UNSUPPORTED,
+                confidence=0.2,
+                requires_human_review=True,
+            )
+        return _validation(SupportStatus.DIRECT, confidence=0.91)
+
+    monkeypatch.setattr(auditable_answer, "retrieve_evidence", fake_retrieve)
+    monkeypatch.setattr(
+        auditable_answer,
+        "provision_langchain_model",
+        fake_provision,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "validate_claim_semantics",
+        fake_validate,
+    )
+
+    result = await build_auditable_answer(
+        AuditableAnswerRequest(
+            question="Quem decide?",
+            regeneration_attempts=1,
+        )
+    )
+
+    assert provision_calls == 2
+    assert result.status == "answered"
+    assert result.answer == "A autorização compete à entidade competente."
+    assert result.claims[0].support_status == SupportStatus.DIRECT
+    assert "regeneration_1" in result.audit.stage_durations_ms
