@@ -11,6 +11,14 @@ from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.evidence import DocumentVersionRecord, EvidenceBlockRecord
 from open_notebook.evidence.docling_adapter import StructuredDocumentExtraction
 from open_notebook.evidence.models import ExtractionMethod
+from open_notebook.evidence.versioning import (
+    DocumentChangeType,
+    DocumentVersionCandidate,
+    DocumentVersionStatus,
+    detect_document_change,
+    mark_version_superseded,
+    persist_document_change,
+)
 from open_notebook.exceptions import InvalidInputError
 
 _EXTRACTION_PROFILE_KEYS = (
@@ -30,10 +38,14 @@ class EvidenceIngestionResult:
     created_blocks: int
     existing_blocks: int
     indexing_status: str = "not_required"
+    change_type: DocumentChangeType = DocumentChangeType.UNCHANGED
+    change_id: str | None = None
 
 
 async def _find_document_version(
-    *, source_id: str, version_hash: str
+    *,
+    source_id: str,
+    version_hash: str,
 ) -> DocumentVersionRecord | None:
     rows = await repo_query(
         "SELECT * FROM document_version WHERE source = $source AND version_hash = $hash LIMIT 1",
@@ -43,6 +55,10 @@ async def _find_document_version(
         },
     )
     return DocumentVersionRecord(**rows[0]) if rows else None
+
+
+async def _find_document_versions(source_id: str) -> list[DocumentVersionRecord]:
+    return await DocumentVersionRecord.get_for_source(source_id)
 
 
 def _validate_existing_extraction(
@@ -123,17 +139,37 @@ async def _index_new_blocks(document_version_id: str, created_blocks: int) -> st
 
 
 async def persist_structured_extraction(
-    *, source_id: str, extraction: StructuredDocumentExtraction
+    *,
+    source_id: str,
+    extraction: StructuredDocumentExtraction,
 ) -> EvidenceIngestionResult:
-    """Persist one extraction idempotently and index it on a best-effort basis."""
+    """Persist one extraction and record its version/change lifecycle."""
 
     if not source_id:
         raise InvalidInputError("Source ID is required for evidence ingestion")
 
-    version = await _find_document_version(
+    versions = await _find_document_versions(source_id)
+    version = next(
+        (
+            item
+            for item in versions
+            if item.version_hash == extraction.version_hash
+        ),
+        None,
+    )
+    previous = version or (versions[0] if versions else None)
+    candidate = DocumentVersionCandidate(
         source_id=source_id,
         version_hash=extraction.version_hash,
+        extraction_method=ExtractionMethod.DOCLING,
+        page_count=extraction.page_count,
+        metadata=extraction.metadata,
     )
+    change = detect_document_change(
+        previous.to_snapshot() if previous else None,
+        candidate,
+    )
+
     created_version = version is None
     if version is None:
         version = DocumentVersionRecord(
@@ -142,8 +178,20 @@ async def persist_structured_extraction(
             extraction_method=ExtractionMethod.DOCLING,
             page_count=extraction.page_count,
             metadata=extraction.metadata,
+            version_number=(previous.version_number or len(versions) if previous else 0)
+            + 1,
+            status=DocumentVersionStatus.CURRENT,
+            supersedes=previous.id if previous and previous.id else None,
+            change_type=change.change_type,
+            change_summary=change.summary,
         )
         await version.save()
+
+        if previous and previous.id:
+            await mark_version_superseded(
+                previous.id,
+                superseded_at=change.detected_at,
+            )
 
     if not version.id:
         raise RuntimeError("Document version was saved without a record ID")
@@ -181,6 +229,7 @@ async def persist_structured_extraction(
         await record.save()
         created_blocks += 1
 
+    await persist_document_change(change, current_version_id=version.id)
     indexing_status = await _index_new_blocks(version.id, created_blocks)
     return EvidenceIngestionResult(
         document_version_id=version.id,
@@ -188,4 +237,6 @@ async def persist_structured_extraction(
         created_blocks=created_blocks,
         existing_blocks=len(existing_ids),
         indexing_status=indexing_status,
+        change_type=change.change_type,
+        change_id=change.change_id,
     )
