@@ -33,12 +33,17 @@ pytestmark = pytest.mark.skipif(
     ),
 )
 
-LATEST_MIGRATION = 25
+LATEST_MIGRATION = 26
 EVIDENCE_TABLES = {
     "document_version",
     "evidence_block",
     "claim",
     "claim_evidence",
+}
+GRAPH_TABLES = {
+    "knowledge_entity",
+    "knowledge_relation",
+    "entity_evidence",
 }
 EVIDENCE_ANALYZER = "intelos_evidence_analyzer"
 RETRIEVAL_FIELDS = {
@@ -73,6 +78,16 @@ def _assert_evidence_schema_absent(schema: str) -> None:
     for table in EVIDENCE_TABLES:
         assert table not in schema
     assert EVIDENCE_ANALYZER not in schema
+
+
+def _assert_graph_schema_present(schema: str) -> None:
+    for table in GRAPH_TABLES:
+        assert table in schema
+
+
+def _assert_graph_schema_absent(schema: str) -> None:
+    for table in GRAPH_TABLES:
+        assert table not in schema
 
 
 def _assert_retrieval_schema_present(table_schema: str) -> None:
@@ -137,6 +152,7 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
     _assert_retrieval_schema_present(await _evidence_table_schema())
+    _assert_graph_schema_present(await _database_schema())
 
     await repo_query(
         "CREATE source:evidence_test SET title = 'Evidence migration integration';"
@@ -224,10 +240,17 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     assert await repo_query("SELECT * FROM evidence_block;") == []
 
     await manager.runner.run_one_down()
-    assert await manager.get_current_version() == 24
+    assert await manager.get_current_version() == 25
     assert await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_present(await _evidence_table_schema())
+    _assert_graph_schema_absent(await _database_schema())
+
+    await manager.runner.run_one_down()
+    assert await manager.get_current_version() == 24
+    _assert_evidence_schema_present(await _database_schema())
     _assert_retrieval_schema_absent(await _evidence_table_schema())
+    _assert_graph_schema_absent(await _database_schema())
 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 23
@@ -238,7 +261,12 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     _assert_evidence_schema_present(await _database_schema())
 
     await manager.runner.run_one_up()
+    assert await manager.get_current_version() == 25
+    _assert_retrieval_schema_present(await _evidence_table_schema())
+
+    await manager.runner.run_one_up()
     assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
     _assert_retrieval_schema_present(await _evidence_table_schema())
+    _assert_graph_schema_present(await _database_schema())
