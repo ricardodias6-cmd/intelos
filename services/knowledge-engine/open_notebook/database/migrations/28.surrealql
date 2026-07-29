@@ -1,0 +1,47 @@
+-- Migration 28: autonomous document version lifecycle and change detection
+
+DEFINE FIELD IF NOT EXISTS version_number ON TABLE document_version TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS status ON TABLE document_version TYPE string DEFAULT "current";
+DEFINE FIELD IF NOT EXISTS supersedes ON TABLE document_version TYPE option<record<document_version>>;
+DEFINE FIELD IF NOT EXISTS superseded_at ON TABLE document_version TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS revoked_at ON TABLE document_version TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS change_type ON TABLE document_version TYPE string DEFAULT "new";
+DEFINE FIELD IF NOT EXISTS change_summary ON document_version FLEXIBLE TYPE option<object>;
+
+DEFINE INDEX IF NOT EXISTS idx_document_version_source_status
+ON document_version FIELDS source, status;
+DEFINE INDEX IF NOT EXISTS idx_document_version_source_number
+ON document_version FIELDS source, version_number;
+
+DEFINE TABLE IF NOT EXISTS document_change SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS change_id ON TABLE document_change TYPE string;
+DEFINE FIELD IF NOT EXISTS source ON TABLE document_change TYPE record<source>;
+DEFINE FIELD IF NOT EXISTS previous_version ON TABLE document_change TYPE option<record<document_version>>;
+DEFINE FIELD IF NOT EXISTS current_version ON TABLE document_change TYPE record<document_version>;
+DEFINE FIELD IF NOT EXISTS previous_version_hash ON TABLE document_change TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS current_version_hash ON TABLE document_change TYPE string;
+DEFINE FIELD IF NOT EXISTS change_type ON TABLE document_change TYPE string;
+DEFINE FIELD IF NOT EXISTS content_changed ON TABLE document_change TYPE bool;
+DEFINE FIELD IF NOT EXISTS metadata_changed ON TABLE document_change TYPE bool;
+DEFINE FIELD IF NOT EXISTS requires_reprocessing ON TABLE document_change TYPE bool;
+DEFINE FIELD IF NOT EXISTS summary ON document_change FLEXIBLE TYPE object;
+DEFINE FIELD IF NOT EXISTS detected_at ON TABLE document_change TYPE datetime;
+DEFINE FIELD IF NOT EXISTS created ON document_change DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON document_change DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_document_change_id
+ON TABLE document_change FIELDS change_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_document_change_source
+ON TABLE document_change FIELDS source;
+DEFINE INDEX IF NOT EXISTS idx_document_change_type
+ON TABLE document_change FIELDS change_type;
+DEFINE INDEX IF NOT EXISTS idx_document_change_current_version
+ON TABLE document_change FIELDS current_version;
+
+DEFINE EVENT IF NOT EXISTS intelos_document_version_change_delete
+ON TABLE document_version
+WHEN ($after == NONE)
+THEN {
+    DELETE document_change
+    WHERE previous_version == $before.id OR current_version == $before.id;
+};
