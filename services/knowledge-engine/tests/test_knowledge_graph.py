@@ -7,12 +7,13 @@ from pydantic import ValidationError
 
 from open_notebook.exceptions import InvalidInputError
 
-from open_notebook.knowledge_graph import (
+import open_notebook.knowledge_graph.extraction as extraction
+import open_notebook.knowledge_graph.persistence as persistence
+from open_notebook.knowledge_graph.models import (
     KnowledgeEntity,
     KnowledgeGraphExtraction,
+    KnowledgeGraphPersistenceResult,
     KnowledgeRelation,
-    extraction,
-    persistence,
 )
 
 
@@ -188,7 +189,7 @@ async def test_extraction_is_bound_to_selected_evidence_and_persisted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     language_model = _GraphLanguageModel(_extraction())
-    persisted = persistence.KnowledgeGraphPersistenceResult(
+    persisted = KnowledgeGraphPersistenceResult(
         entities_upserted=2,
         relations_upserted=1,
         evidence_links_upserted=2,
@@ -211,7 +212,7 @@ async def test_extraction_is_bound_to_selected_evidence_and_persisted(
 
     async def fake_persist(
         extraction: KnowledgeGraphExtraction,
-    ) -> persistence.KnowledgeGraphPersistenceResult:
+    ) -> KnowledgeGraphPersistenceResult:
         assert extraction.evidence_ids == ["EV_ONE"]
         return persisted
 
