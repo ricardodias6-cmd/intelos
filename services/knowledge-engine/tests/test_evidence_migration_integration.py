@@ -1,4 +1,4 @@
-"""Integration test for the Evidence Core SurrealDB migration.
+"""Integration test for the Evidence Core SurrealDB migrations.
 
 This test requires a disposable SurrealDB instance configured through the
 standard SURREAL_* environment variables. The dedicated GitHub Actions job
@@ -33,6 +33,7 @@ pytestmark = pytest.mark.skipif(
     ),
 )
 
+LATEST_MIGRATION = 25
 EVIDENCE_TABLES = {
     "document_version",
     "evidence_block",
@@ -40,11 +41,26 @@ EVIDENCE_TABLES = {
     "claim_evidence",
 }
 EVIDENCE_ANALYZER = "intelos_evidence_analyzer"
+RETRIEVAL_FIELDS = {
+    "embedding_model",
+    "embedded_text_hash",
+}
+RETRIEVAL_INDEXES = {
+    "idx_evidence_source_version",
+    "idx_evidence_version_page",
+    "idx_evidence_block_type",
+    "idx_evidence_section_path",
+}
 
 
 async def _database_schema() -> str:
     """Return a stable textual representation of the database schema."""
     return repr(await repo_query("INFO FOR DB;"))
+
+
+async def _evidence_table_schema() -> str:
+    """Return evidence_block fields and indexes from the correct schema scope."""
+    return repr(await repo_query("INFO FOR TABLE evidence_block;"))
 
 
 def _assert_evidence_schema_present(schema: str) -> None:
@@ -57,6 +73,16 @@ def _assert_evidence_schema_absent(schema: str) -> None:
     for table in EVIDENCE_TABLES:
         assert table not in schema
     assert EVIDENCE_ANALYZER not in schema
+
+
+def _assert_retrieval_schema_present(table_schema: str) -> None:
+    for marker in RETRIEVAL_FIELDS | RETRIEVAL_INDEXES:
+        assert marker in table_schema
+
+
+def _assert_retrieval_schema_absent(table_schema: str) -> None:
+    for marker in RETRIEVAL_FIELDS | RETRIEVAL_INDEXES:
+        assert marker not in table_schema
 
 
 def _structured_extraction(*, ocr_enabled: bool = False) -> StructuredDocumentExtraction:
@@ -100,16 +126,17 @@ def _structured_extraction(*, ocr_enabled: bool = False) -> StructuredDocumentEx
 
 
 @pytest.mark.asyncio
-async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None:
+async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() -> None:
     manager = AsyncMigrationManager()
 
-    assert len(manager.up_migrations) == 24
-    assert len(manager.down_migrations) == 24
+    assert len(manager.up_migrations) == LATEST_MIGRATION
+    assert len(manager.down_migrations) == LATEST_MIGRATION
 
     await manager.run_migration_up()
-    assert await manager.get_current_version() == 24
+    assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_present(await _evidence_table_schema())
 
     await repo_query(
         "CREATE source:evidence_test SET title = 'Evidence migration integration';"
@@ -197,11 +224,21 @@ async def test_migration_24_up_down_and_reapply_against_real_surrealdb() -> None
     assert await repo_query("SELECT * FROM evidence_block;") == []
 
     await manager.runner.run_one_down()
-    assert await manager.get_current_version() == 23
+    assert await manager.get_current_version() == 24
     assert await manager.needs_migration()
+    _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_absent(await _evidence_table_schema())
+
+    await manager.runner.run_one_down()
+    assert await manager.get_current_version() == 23
     _assert_evidence_schema_absent(await _database_schema())
 
     await manager.runner.run_one_up()
     assert await manager.get_current_version() == 24
+    _assert_evidence_schema_present(await _database_schema())
+
+    await manager.runner.run_one_up()
+    assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
+    _assert_retrieval_schema_present(await _evidence_table_schema())
