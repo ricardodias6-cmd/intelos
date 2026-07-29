@@ -153,3 +153,8 @@ class KnowledgeGraphPersistenceResult(BaseModel):
     relations_upserted: int
     evidence_links_upserted: int
     evidence_ids: list[str]
+
+
+class KnowledgeGraphExtractionResult(BaseModel):
+    extraction: KnowledgeGraphExtraction
+    persistence: KnowledgeGraphPersistenceResult
