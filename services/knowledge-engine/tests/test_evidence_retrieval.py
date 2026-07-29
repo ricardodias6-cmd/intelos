@@ -8,6 +8,7 @@ from open_notebook.evidence import retrieval
 from open_notebook.evidence.retrieval import (
     EvidenceSearchFilters,
     cosine_similarity,
+    index_evidence_blocks,
     lexical_score,
     retrieve_evidence,
 )
@@ -183,3 +184,87 @@ async def test_search_can_target_explicit_old_version(monkeypatch: pytest.Monkey
 
     assert [hit.evidence_id for hit in response.hits] == ["EV_OLD_001"]
     assert response.hits[0].document_version_hash == "a" * 64
+
+
+@pytest.mark.asyncio
+async def test_partial_indexing_failure_preserves_successes_and_recovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from open_notebook.ai.models import model_manager
+
+    rows = [
+        {
+            "id": "evidence_block:one",
+            "raw_text": "Primeiro bloco",
+            "verified_text": None,
+            "embedding": None,
+            "embedding_model": None,
+            "embedded_text_hash": None,
+            "indexing_status": None,
+            "indexing_error": None,
+        },
+        {
+            "id": "evidence_block:two",
+            "raw_text": "Segundo bloco",
+            "verified_text": None,
+            "embedding": None,
+            "embedding_model": None,
+            "embedded_text_hash": None,
+            "indexing_status": None,
+            "indexing_error": None,
+        },
+    ]
+    fail_second_update = True
+
+    async def fake_get_embedding_model() -> object:
+        return type("EmbeddingModel", (), {"model_name": "test-model"})()
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[float(index + 1), 0.0] for index, _ in enumerate(texts)]
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        nonlocal fail_second_update
+        variables = variables or {}
+        if query.startswith("SELECT * FROM evidence_block"):
+            offset = int(variables["offset"])
+            limit = int(variables["limit"])
+            return [dict(row) for row in rows[offset : offset + limit]]
+        if query.startswith("UPDATE evidence_block SET indexing_status"):
+            ids = {str(value) for value in variables["ids"]}
+            for row in rows:
+                if row["id"] in ids:
+                    row["indexing_status"] = variables["status"]
+                    row["indexing_error"] = variables["error"]
+            return []
+        if query == "UPDATE $id MERGE $data":
+            row_id = str(variables["id"])
+            if row_id == "evidence_block:two" and fail_second_update:
+                fail_second_update = False
+                raise RuntimeError("simulated persistence failure")
+            row = next(item for item in rows if item["id"] == row_id)
+            row.update(variables["data"])
+            return []
+        raise AssertionError(f"Unexpected query: {query}")
+
+    monkeypatch.setattr(model_manager, "get_embedding_model", fake_get_embedding_model)
+    monkeypatch.setattr(retrieval, "generate_embeddings", fake_generate_embeddings)
+    monkeypatch.setattr(retrieval, "repo_query", fake_repo_query)
+
+    first = await index_evidence_blocks(batch_size=2, max_blocks=10)
+
+    assert first.embedded == 1
+    assert first.failed == 1
+    assert rows[0]["indexing_status"] == "indexed"
+    assert rows[1]["indexing_status"] == "failed"
+    assert rows[0]["indexing_error"] is None
+    assert rows[1]["indexing_error"] == "simulated persistence failure"
+
+    second = await index_evidence_blocks(batch_size=2, max_blocks=10)
+
+    assert second.embedded == 1
+    assert second.failed == 0
+    assert second.skipped == 1
+    assert all(row["indexing_status"] == "indexed" for row in rows)
+    assert all(row["indexing_error"] is None for row in rows)
