@@ -5,9 +5,18 @@ from __future__ import annotations
 import hashlib
 import time
 from collections.abc import Sequence
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
+from open_notebook.audit import (
+    AuditConflict,
+    AuditEvidenceDecision,
+    AuditEvidenceDecisionType,
+    AuditReport,
+    AuditTraceEvent,
+    persist_audit_report,
+)
 from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
@@ -78,6 +87,115 @@ class CandidateAnswer(BaseModel):
 def _question_hash(question: str) -> str:
     digest = hashlib.sha256(question.strip().encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
+
+
+def _new_answer_ids() -> tuple[str, str]:
+    token = uuid4().hex.upper()
+    return f"ANSWER_{token}", f"AUDIT_{token}"
+
+
+async def _persist_answer_audit(
+    request: AuditableAnswerRequest,
+    answer: AuditableAnswer,
+    hits: Sequence[EvidenceSearchHit],
+    rejected: Sequence[RejectedCandidateClaim],
+    *,
+    model_id: str | None,
+) -> AuditableAnswer:
+    answer_id, audit_id = _new_answer_ids()
+    cited_ids = [citation.evidence_id for citation in answer.citations]
+    cited_id_set = set(cited_ids)
+    hit_ids = {hit.evidence_id for hit in hits}
+    rejection_reasons: dict[str, list[str]] = {}
+
+    for rejected_claim in rejected:
+        for evidence_id in rejected_claim.evidence_ids:
+            if evidence_id in hit_ids:
+                rejection_reasons.setdefault(evidence_id, []).append(
+                    rejected_claim.reason
+                )
+
+    evidence_decisions: list[AuditEvidenceDecision] = []
+    for rank, hit in enumerate(hits, start=1):
+        if hit.evidence_id in cited_id_set:
+            decision = AuditEvidenceDecisionType.SELECTED
+            reason = "Referenced by a validated answer claim."
+        elif hit.evidence_id in rejection_reasons:
+            decision = AuditEvidenceDecisionType.REJECTED
+            reason = " ".join(
+                dict.fromkeys(rejection_reasons[hit.evidence_id])
+            )
+        else:
+            decision = AuditEvidenceDecisionType.NOT_SELECTED
+            reason = "Retrieved as a candidate but not used by a validated claim."
+
+        evidence_decisions.append(
+            AuditEvidenceDecision(
+                evidence_id=hit.evidence_id,
+                decision=decision,
+                reason=reason,
+                retrieval_score=hit.score,
+                rank=rank,
+            )
+        )
+
+    conflicts = [
+        AuditConflict(
+            conflict_id=f"CONFLICT_{claim.claim_id}",
+            claim_id=claim.claim_id,
+            evidence_ids=claim.evidence_ids,
+            description=(
+                claim.qualification
+                or "A claim has contradictory supporting evidence."
+            ),
+        )
+        for claim in answer.claims
+        if (
+            claim.support_status == SupportStatus.CONTRADICTED
+            and claim.evidence_ids
+        )
+    ]
+    trace = [
+        AuditTraceEvent(stage=stage, duration_ms=duration)
+        for stage, duration in answer.audit.stage_durations_ms.items()
+    ]
+    report = AuditReport(
+        audit_id=audit_id,
+        answer_id=answer_id,
+        question=request.question,
+        question_hash=answer.audit.question_hash,
+        answer=answer.answer,
+        claims=answer.claims,
+        citations=answer.citations,
+        overall_confidence=answer.overall_confidence,
+        requires_human_review=answer.requires_human_review,
+        status=answer.status,
+        selected_evidence_ids=cited_ids,
+        evidence_decisions=evidence_decisions,
+        conflicts=conflicts,
+        trace=trace,
+        pipeline_version=answer.audit.pipeline_version,
+        embedding_model=answer.audit.embedding_model,
+        generated_at=answer.audit.generated_at,
+        metadata={
+            "model_id": model_id,
+            "max_evidence": request.max_evidence,
+            "candidate_limit": request.candidate_limit,
+            "minimum_score": request.minimum_score,
+            "source_id": request.source_id,
+            "version_hash": request.version_hash,
+            "rejected_claims": [
+                item.model_dump(mode="json") for item in rejected
+            ],
+        },
+    )
+    await persist_audit_report(report)
+    return answer.model_copy(
+        update={
+            "answer_id": answer_id,
+            "audit_report_id": audit_id,
+        }
+    )
 
 
 def _render_evidence_context(hits: Sequence[EvidenceSearchHit]) -> str:
@@ -463,7 +581,7 @@ async def build_auditable_answer(
         "retrieval_scores": retrieval_scores,
         "direct_threshold": request.direct_threshold,
         "partial_threshold": request.partial_threshold,
-        "pipeline_version": "phase-5",
+        "pipeline_version": "phase-7",
         "stage_durations_ms": timings,
     }
 
@@ -471,7 +589,7 @@ async def build_auditable_answer(
         timings["total"] = round(
             (time.perf_counter() - started_at) * 1000
         )
-        return AuditableAnswer(
+        answer = AuditableAnswer(
             answer=(
                 "Não foi encontrada evidência suficiente para responder "
                 "de forma factual."
@@ -482,6 +600,13 @@ async def build_auditable_answer(
             requires_human_review=True,
             status=AuditableAnswerStatus.INSUFFICIENT_EVIDENCE,
             audit=AnswerAuditMetadata(**audit_base),
+        )
+        return await _persist_answer_audit(
+            request,
+            answer,
+            hits,
+            [],
+            model_id=model_id,
         )
 
     generation_started = time.perf_counter()
@@ -609,7 +734,7 @@ async def build_auditable_answer(
     )
     audit_base["stage_durations_ms"] = timings
 
-    return AuditableAnswer(
+    answer = AuditableAnswer(
         answer=answer_text,
         claims=claims,
         citations=citations,
@@ -617,4 +742,11 @@ async def build_auditable_answer(
         requires_human_review=requires_human_review,
         status=status,
         audit=AnswerAuditMetadata(**audit_base),
+    )
+    return await _persist_answer_audit(
+        request,
+        answer,
+        hits,
+        rejected,
+        model_id=model_id,
     )
