@@ -21,11 +21,13 @@ def _extraction() -> KnowledgeGraphExtraction:
                 entity_id="ENT_AUTHORIZATION",
                 canonical_name="Autorização",
                 entity_type="concept",
+                evidence_ids=["EV_ONE"],
             ),
             KnowledgeEntity(
                 entity_id="ENT_AGENCY",
                 canonical_name="Entidade competente",
                 entity_type="organization",
+                evidence_ids=["EV_ONE"],
             ),
         ],
         relations=[
@@ -65,6 +67,23 @@ def test_graph_rejects_relation_with_unknown_entity() -> None:
                     object_entity_id="ENT_MISSING",
                     relation_type="related_to",
                     evidence_ids=["EV_ONE"],
+                )
+            ],
+        )
+
+
+def test_graph_rejects_entity_with_outside_evidence() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="entity references evidence outside the extraction set",
+    ):
+        KnowledgeGraphExtraction(
+            evidence_ids=["EV_ONE"],
+            entities=[
+                KnowledgeEntity(
+                    entity_id="ENT_ONE",
+                    canonical_name="Uma entidade",
+                    evidence_ids=["EV_MISSING"],
                 )
             ],
         )
