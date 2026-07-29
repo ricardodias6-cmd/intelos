@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from open_notebook.evidence.models import _STABLE_ID_RE
+_STABLE_ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{2,127}$")
 
 
 class KnowledgeEntityType(StrEnum):
