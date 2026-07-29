@@ -31,6 +31,7 @@ from api.routers import (
     embedding,
     embedding_rebuild,
     episode_profiles,
+    evidence,
     insights,
     languages,
     models,
@@ -388,6 +389,7 @@ app.include_router(models.router, prefix="/api", tags=["models"])
 app.include_router(transformations.router, prefix="/api", tags=["transformations"])
 app.include_router(notes.router, prefix="/api", tags=["notes"])
 app.include_router(embedding.router, prefix="/api", tags=["embedding"])
+app.include_router(evidence.router, prefix="/api", tags=["evidence"])
 app.include_router(
     embedding_rebuild.router, prefix="/api/embeddings", tags=["embeddings"]
 )
