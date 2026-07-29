@@ -27,10 +27,10 @@ from open_notebook.evidence.versioning import (
     ReprocessingReason,
     ReprocessingStatus,
     build_reprocessing_request,
-    enqueue_reprocessing,
-    revoke_document_version,
     detect_document_change,
+    enqueue_reprocessing,
     persist_document_change,
+    revoke_document_version,
 )
 
 __all__ = [
