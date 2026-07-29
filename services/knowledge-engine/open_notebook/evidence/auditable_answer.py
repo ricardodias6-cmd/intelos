@@ -232,7 +232,7 @@ def _render_final_answer(
         else:
             rendered.append(claim.text)
 
-    if has_conflict:
+    if has_conflict and rendered:
         rendered.append(
             "Foi identificada evidência contraditória ou uma afirmação que "
             "requer revisão humana antes de uma conclusão definitiva."
