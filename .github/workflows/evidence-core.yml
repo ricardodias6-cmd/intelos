@@ -33,7 +33,6 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
-      - services/knowledge-engine/tests/test_knowledge_graph.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -46,6 +45,7 @@ on:
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -56,6 +56,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
