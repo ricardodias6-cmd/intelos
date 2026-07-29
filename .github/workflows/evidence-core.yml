@@ -7,16 +7,21 @@ on:
       - agent/phase-2
       - agent/phase-3
       - agent/phase-4
+      - agent/phase-6
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -27,17 +32,20 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -48,6 +56,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -86,8 +95,11 @@ jobs:
           uv run ruff check
           api/main.py
           api/routers/evidence.py
+          api/routers/knowledge_graph.py
           open_notebook/evidence
           open_notebook/domain/evidence.py
+          open_notebook/domain/knowledge_graph.py
+          open_notebook/knowledge_graph
           open_notebook/graphs/source.py
           open_notebook/database/async_migrate.py
           tests/test_evidence_core.py
@@ -100,6 +112,7 @@ jobs:
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
+          tests/test_knowledge_graph.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -112,6 +125,7 @@ jobs:
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
+          tests/test_knowledge_graph.py
 
   migration-integration:
     needs: test
@@ -173,7 +187,7 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migrations 24 and 25
+      - name: Test migrations 24 through 26
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
 
       - name: Test hybrid evidence retrieval end to end
