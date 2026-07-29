@@ -1,0 +1,15 @@
+-- Rollback Migration 27: Remove explainable audit report persistence
+
+REMOVE EVENT IF EXISTS intelos_audit_evidence_delete ON TABLE evidence_block;
+REMOVE EVENT IF EXISTS intelos_audit_report_delete ON TABLE audit_report;
+
+REMOVE INDEX IF EXISTS idx_audit_evidence_endpoints ON TABLE audit_evidence;
+REMOVE INDEX IF EXISTS idx_audit_evidence_decision ON TABLE audit_evidence;
+REMOVE INDEX IF EXISTS idx_audit_evidence_id ON TABLE audit_evidence;
+REMOVE INDEX IF EXISTS idx_audit_report_generated_at ON TABLE audit_report;
+REMOVE INDEX IF EXISTS idx_audit_report_status ON TABLE audit_report;
+REMOVE INDEX IF EXISTS idx_audit_report_answer_id ON TABLE audit_report;
+REMOVE INDEX IF EXISTS idx_audit_report_audit_id ON TABLE audit_report;
+
+REMOVE TABLE IF EXISTS audit_evidence;
+REMOVE TABLE IF EXISTS audit_report;
