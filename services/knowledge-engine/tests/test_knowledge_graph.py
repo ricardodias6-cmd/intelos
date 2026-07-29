@@ -5,10 +5,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from open_notebook.exceptions import InvalidInputError
-
 import open_notebook.knowledge_graph.extraction as extraction
 import open_notebook.knowledge_graph.persistence as persistence
+from open_notebook.exceptions import InvalidInputError
 from open_notebook.knowledge_graph.models import (
     KnowledgeEntity,
     KnowledgeGraphExtraction,
