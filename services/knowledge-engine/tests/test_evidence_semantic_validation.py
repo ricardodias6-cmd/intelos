@@ -109,6 +109,127 @@ async def test_numeric_conflict_is_contradicted(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.asyncio
+async def test_irrelevant_number_does_not_create_numeric_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return [
+            _row(
+                "EV_ONE",
+                "O edifício tem 48 lugares de estacionamento. A autorização compete ao diretor.",
+            )
+        ]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [0.3, 0.953939]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(semantic_validation, "generate_embeddings", fake_generate_embeddings)
+
+    result = await validate_claim_semantics(
+        claim="A autorização deve ser decidida em 24 horas.",
+        evidence_ids=["EV_ONE"],
+    )
+
+    assert result.recommended_support_status == SupportStatus.UNSUPPORTED
+    assert result.evidence_findings[0].numeric_conflict is False
+
+
+@pytest.mark.asyncio
+async def test_direct_and_conflicting_evidence_returns_partial_with_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return [
+            _row("EV_DIRECT", "O prazo aplicável é de 24 horas."),
+            _row("EV_CONFLICT", "O prazo aplicável é de 48 horas."),
+        ]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [1.0, 0.0], [0.95, 0.05]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(semantic_validation, "generate_embeddings", fake_generate_embeddings)
+
+    result = await validate_claim_semantics(
+        claim="O prazo aplicável é de 24 horas.",
+        evidence_ids=["EV_DIRECT", "EV_CONFLICT"],
+    )
+
+    assert result.recommended_support_status == SupportStatus.PARTIAL
+    assert result.requires_human_review is True
+    assert result.evidence_findings[0].numeric_conflict is False
+    assert result.evidence_findings[1].numeric_conflict is True
+    assert "sinais mistos" in result.reasons[0].casefold()
+
+
+@pytest.mark.asyncio
+async def test_negative_cosine_similarity_is_bounded_to_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return [_row("EV_ONE", "Matéria sem relação com a afirmação.")]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [-1.0, 0.0]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(semantic_validation, "generate_embeddings", fake_generate_embeddings)
+
+    result = await validate_claim_semantics(
+        claim="A autorização deve ser decidida em 24 horas.",
+        evidence_ids=["EV_ONE"],
+    )
+
+    assert result.recommended_support_status == SupportStatus.UNSUPPORTED
+    assert result.evidence_findings[0].semantic_score == 0.0
+    assert result.confidence == 1.0
+
+
+@pytest.mark.asyncio
+async def test_unrelated_negation_does_not_create_polarity_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return [
+            _row(
+                "EV_ONE",
+                "A autorização compete ao diretor. O requerente não paga taxa adicional.",
+            )
+        ]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [1.0, 0.0]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(semantic_validation, "generate_embeddings", fake_generate_embeddings)
+
+    result = await validate_claim_semantics(
+        claim="A autorização compete ao diretor.",
+        evidence_ids=["EV_ONE"],
+    )
+
+    assert result.recommended_support_status == SupportStatus.DIRECT
+    assert result.evidence_findings[0].polarity_conflict is False
+
+
+@pytest.mark.asyncio
 async def test_mixed_versions_for_same_source_are_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
