@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import time
 from collections.abc import Sequence
+
 from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.ai.provision import provision_langchain_model
@@ -191,7 +192,7 @@ def _validated_claim(
         else 0
     )
     return AnswerClaim(
-        claim_id="",
+        claim_id="PENDING",
         text=candidate.text,
         kind=candidate.kind,
         evidence_ids=evidence_ids,
