@@ -9,7 +9,10 @@ from open_notebook.audit.models import (
     AuditReportPersistenceResult,
     AuditTraceEvent,
 )
-from open_notebook.audit.persistence import persist_audit_report
+from open_notebook.audit.persistence import (
+    get_audit_report,
+    persist_audit_report,
+)
 
 __all__ = [
     "AuditConflict",
@@ -19,5 +22,6 @@ __all__ = [
     "AuditReport",
     "AuditReportPersistenceResult",
     "AuditTraceEvent",
+    "get_audit_report",
     "persist_audit_report",
 ]
