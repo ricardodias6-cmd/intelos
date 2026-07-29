@@ -7,7 +7,6 @@ import os
 from dataclasses import dataclass
 
 import pytest
-
 from open_notebook.ai.models import model_manager
 from open_notebook.database.async_migrate import AsyncMigrationManager
 from open_notebook.database.repository import repo_query
@@ -92,8 +91,6 @@ def _extraction(
 
 
 def _deterministic_vector(text: str) -> list[float]:
-    """Map materially different passages to distinguishable semantic vectors."""
-
     normalized = text.casefold()
     if "24 horas" in normalized or "prazo para decidir" in normalized:
         return [1.0, 0.0, 0.0]
@@ -186,8 +183,10 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
         ),
     )
 
+    active_model = {"name": "phase2-deterministic-embedding"}
+
     async def fake_get_embedding_model() -> _FakeEmbeddingModel:
-        return _FakeEmbeddingModel()
+        return _FakeEmbeddingModel(model_name=active_model["name"])
 
     async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
         return [_deterministic_vector(text) for text in texts]
@@ -205,18 +204,26 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
         fake_generate_embedding,
     )
 
-    indexed = await index_evidence_blocks(force=True)
+    indexed = await index_evidence_blocks(force=True, batch_size=2)
     assert indexed.considered == 4
     assert indexed.embedded == 4
+    assert indexed.failed == 0
     assert indexed.embedding_model == "phase2-deterministic-embedding"
 
+    active_model["name"] = "phase2-deterministic-embedding-v2"
+    reindexed = await index_evidence_blocks(force=False, batch_size=2)
+    assert reindexed.embedded == 4
+    assert reindexed.embedding_model == active_model["name"]
+
     stored = await repo_query(
-        "SELECT evidence_id, embedding, embedding_model, embedded_text_hash "
+        "SELECT evidence_id, embedding, embedding_model, embedded_text_hash, indexing_status "
         "FROM evidence_block ORDER BY evidence_id"
     )
     assert len(stored) == 4
     assert all(row["embedding"] for row in stored)
     assert all(row["embedded_text_hash"] for row in stored)
+    assert all(row["embedding_model"] == active_model["name"] for row in stored)
+    assert all(row["indexing_status"] == "indexed" for row in stored)
 
     response = await retrieve_evidence(
         query="Qual é o prazo para decidir a autorização?",
@@ -230,7 +237,9 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     assert all(hit.evidence_id != "EV-PHASE2-OLD-001" for hit in response.hits)
 
     first = response.hits[0]
-    manual = next(hit for hit in response.hits if hit.evidence_id == "EV-PHASE2-MANUAL-001")
+    manual = next(
+        hit for hit in response.hits if hit.evidence_id == "EV-PHASE2-MANUAL-001"
+    )
     assert first.semantic_score > manual.semantic_score
     assert first.lexical_score > manual.lexical_score
     assert first.score > manual.score
@@ -255,7 +264,7 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
             section="Prazos",
             block_types=["table"],
         ),
-        allow_legacy_fallback=False,
+        allow_legacy_fallback=True,
     )
     assert [hit.evidence_id for hit in filtered.hits] == ["EV-PHASE2-CURRENT-001"]
     assert filtered.hits[0].structural_score == 1.0
@@ -263,23 +272,28 @@ async def test_hybrid_retrieval_end_to_end(monkeypatch: pytest.MonkeyPatch) -> N
     historical = await retrieve_evidence(
         query="setenta e duas horas",
         filters=EvidenceSearchFilters(source_id=source_a, version_hash=old_hash),
-        allow_legacy_fallback=False,
+        allow_legacy_fallback=True,
     )
     assert historical.selected_versions == {source_a: old_hash}
     assert [hit.evidence_id for hit in historical.hits] == ["EV-PHASE2-OLD-001"]
 
+    legacy_called = False
+
     async def fake_legacy_vector_search(**_: object) -> list[dict[str, object]]:
+        nonlocal legacy_called
+        legacy_called = True
         return [{"id": source_b, "title": "Manual de procedimentos", "similarity": 0.8}]
 
     monkeypatch.setattr(
         "open_notebook.evidence.retrieval.legacy_vector_search",
         fake_legacy_vector_search,
     )
-    fallback = await retrieve_evidence(
+    filtered_miss = await retrieve_evidence(
         query="expressão inexistente no corpus",
         filters=EvidenceSearchFilters(block_types=["nonexistent"]),
         allow_legacy_fallback=True,
     )
-    assert fallback.hits == []
-    assert fallback.used_legacy_fallback is True
-    assert fallback.legacy_results[0]["id"] == source_b
+    assert filtered_miss.hits == []
+    assert filtered_miss.used_legacy_fallback is False
+    assert filtered_miss.legacy_fallback_reason == "disabled_by_filters"
+    assert legacy_called is False
