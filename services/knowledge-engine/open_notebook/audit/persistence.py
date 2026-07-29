@@ -5,6 +5,10 @@ from __future__ import annotations
 from hashlib import sha256
 from typing import Any
 
+from open_notebook.audit.models import (
+    AuditReport,
+    AuditReportPersistenceResult,
+)
 from open_notebook.database.repository import (
     ensure_record_id,
     repo_query,
@@ -12,11 +16,6 @@ from open_notebook.database.repository import (
     repo_upsert,
 )
 from open_notebook.exceptions import InvalidInputError
-
-from open_notebook.audit.models import (
-    AuditReport,
-    AuditReportPersistenceResult,
-)
 
 def _stable_edge_id(audit_id: str, evidence_id: str, decision: str) -> str:
     digest = sha256(
