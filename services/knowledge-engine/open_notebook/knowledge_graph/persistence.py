@@ -61,7 +61,7 @@ async def persist_knowledge_graph(
             },
         )
 
-        for evidence_id in extraction.evidence_ids:
+        for evidence_id in entity.evidence_ids:
             await repo_relate(
                 source=record_id,
                 relationship="entity_evidence",
@@ -102,7 +102,7 @@ async def persist_knowledge_graph(
         entities_upserted=len(extraction.entities),
         relations_upserted=len(extraction.relations),
         evidence_links_upserted=(
-            len(extraction.entities) * len(extraction.evidence_ids)
+            sum(len(entity.evidence_ids) for entity in extraction.entities)
         ),
         evidence_ids=extraction.evidence_ids,
     )
