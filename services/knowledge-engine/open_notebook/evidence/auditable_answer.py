@@ -400,7 +400,6 @@ async def build_auditable_answer(
             continue
 
         if candidate_claim.kind in {
-            ClaimKind.INFERENCE,
             ClaimKind.OPINION,
             ClaimKind.USER_PROVIDED,
         }:
