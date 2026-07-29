@@ -9,6 +9,8 @@ on:
       - agent/phase-4
     paths:
       - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/api/main.py
+      - services/knowledge-engine/api/routers/evidence.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/graphs/source.py
@@ -24,6 +26,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
+      - services/knowledge-engine/tests/test_evidence_answer_api.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -76,6 +79,8 @@ jobs:
       - name: Lint Evidence Core
         run: >-
           uv run ruff check
+          api/main.py
+          api/routers/evidence.py
           open_notebook/evidence
           open_notebook/domain/evidence.py
           open_notebook/graphs/source.py
@@ -89,6 +94,7 @@ jobs:
           tests/test_evidence_semantic_validation_regressions.py
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
+          tests/test_evidence_answer_api.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -100,6 +106,7 @@ jobs:
           tests/test_evidence_semantic_validation_regressions.py
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
+          tests/test_evidence_answer_api.py
 
   migration-integration:
     needs: test
