@@ -29,6 +29,7 @@ class EvidenceIngestionResult:
     created_version: bool
     created_blocks: int
     existing_blocks: int
+    indexing_status: str = "not_required"
 
 
 async def _find_document_version(
@@ -50,16 +51,10 @@ def _validate_existing_extraction(
     extraction: StructuredDocumentExtraction,
     existing_ids: set[str],
 ) -> set[str]:
-    """Ensure reprocessing cannot mutate an immutable document version.
-
-    A repeated import may resume a partial write, but it must use the same
-    extraction profile and produce the same complete set of evidence IDs.
-    """
     if version.extraction_method != ExtractionMethod.DOCLING:
         raise RuntimeError(
             "Existing document version was created by a different extraction method"
         )
-
     if version.page_count != extraction.page_count:
         raise RuntimeError(
             "Extraction page count does not match the immutable document version"
@@ -76,49 +71,61 @@ def _validate_existing_extraction(
     incoming_set = set(incoming_ids)
     if len(incoming_set) != len(incoming_ids):
         raise RuntimeError("Extraction produced duplicate evidence identifiers")
-
-    unexpected_existing = existing_ids - incoming_set
-    if unexpected_existing:
+    if existing_ids - incoming_set:
         raise RuntimeError(
             "Stored evidence does not belong to the current immutable extraction"
         )
-
     return incoming_set
 
 
-async def _index_new_blocks(document_version_id: str, created_blocks: int) -> None:
-    """Index newly persisted blocks when an embedding model is configured.
+async def _mark_version_blocks(
+    document_version_id: str,
+    status: str,
+    error: str | None = None,
+) -> None:
+    await repo_query(
+        "UPDATE evidence_block SET indexing_status = $status, indexing_error = $error "
+        "WHERE document_version = $version",
+        {
+            "version": ensure_record_id(document_version_id),
+            "status": status,
+            "error": error,
+        },
+    )
 
-    Evidence persistence remains available without an embedding provider. The
-    dedicated indexing API can backfill those blocks later.
-    """
+
+async def _index_new_blocks(document_version_id: str, created_blocks: int) -> str:
+    """Attempt indexing without turning a persisted import into a false failure."""
 
     if created_blocks == 0:
-        return
+        return "not_required"
 
     from open_notebook.evidence.retrieval import index_evidence_blocks
 
+    await _mark_version_blocks(document_version_id, "pending")
     try:
-        await index_evidence_blocks(document_version_id=document_version_id)
+        result = await index_evidence_blocks(document_version_id=document_version_id)
     except InvalidInputError as exc:
         logger.info("Evidence embeddings deferred: {}", exc)
-    except Exception:
+        return "pending"
+    except Exception as exc:
         logger.exception(
             "Evidence blocks were persisted but automatic embedding indexing failed"
         )
-        raise
+        await _mark_version_blocks(document_version_id, "failed", str(exc)[:1000])
+        return "failed"
+
+    if result.failed:
+        return "failed"
+    if result.truncated:
+        return "pending"
+    return "indexed"
 
 
 async def persist_structured_extraction(
     *, source_id: str, extraction: StructuredDocumentExtraction
 ) -> EvidenceIngestionResult:
-    """Persist one extraction idempotently.
-
-    Reprocessing the same source bytes reuses the existing document version and
-    creates only evidence blocks that are not already present. A partial import
-    can resume, but profile or output drift is rejected to keep each document
-    version immutable and internally coherent.
-    """
+    """Persist one extraction idempotently and index it on a best-effort basis."""
 
     if not source_id:
         raise InvalidInputError("Source ID is required for evidence ingestion")
@@ -128,7 +135,6 @@ async def persist_structured_extraction(
         version_hash=extraction.version_hash,
     )
     created_version = version is None
-
     if version is None:
         version = DocumentVersionRecord(
             source=source_id,
@@ -157,7 +163,6 @@ async def persist_structured_extraction(
     for block in extraction.blocks:
         if block.evidence_id in existing_ids:
             continue
-
         record = EvidenceBlockRecord(
             evidence_id=block.evidence_id,
             source=source_id,
@@ -176,11 +181,11 @@ async def persist_structured_extraction(
         await record.save()
         created_blocks += 1
 
-    await _index_new_blocks(version.id, created_blocks)
-
+    indexing_status = await _index_new_blocks(version.id, created_blocks)
     return EvidenceIngestionResult(
         document_version_id=version.id,
         created_version=created_version,
         created_blocks=created_blocks,
         existing_blocks=len(existing_ids),
+        indexing_status=indexing_status,
     )
