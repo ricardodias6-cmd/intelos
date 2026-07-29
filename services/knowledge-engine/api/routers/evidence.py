@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.evidence.retrieval import (
     EvidenceIndexResult,
@@ -16,6 +16,7 @@ router = APIRouter()
 class EvidenceSearchRequest(BaseModel):
     query: str = Field(min_length=1)
     limit: int = Field(default=10, ge=1, le=100)
+    candidate_limit: int = Field(default=250, ge=1, le=2000)
     minimum_score: float = Field(default=0.05, ge=0, le=1)
     source_id: str | None = None
     version_hash: str | None = None
@@ -24,11 +25,19 @@ class EvidenceSearchRequest(BaseModel):
     block_types: list[str] = Field(default_factory=list)
     allow_legacy_fallback: bool = True
 
+    @model_validator(mode="after")
+    def validate_candidate_limit(self) -> "EvidenceSearchRequest":
+        if self.candidate_limit < self.limit:
+            raise ValueError("candidate_limit must be greater than or equal to limit")
+        return self
+
 
 class EvidenceIndexRequest(BaseModel):
     source_id: str | None = None
     document_version_id: str | None = None
     force: bool = False
+    batch_size: int = Field(default=64, ge=1, le=256)
+    max_blocks: int = Field(default=5000, ge=1, le=100000)
 
 
 @router.post("/evidence/search", response_model=EvidenceSearchResponse)
@@ -37,6 +46,7 @@ async def search_evidence(request: EvidenceSearchRequest) -> EvidenceSearchRespo
         return await retrieve_evidence(
             query=request.query,
             limit=request.limit,
+            candidate_limit=request.candidate_limit,
             minimum_score=request.minimum_score,
             filters=EvidenceSearchFilters(
                 source_id=request.source_id,
@@ -58,6 +68,8 @@ async def index_evidence(request: EvidenceIndexRequest) -> EvidenceIndexResult:
             source_id=request.source_id,
             document_version_id=request.document_version_id,
             force=request.force,
+            batch_size=request.batch_size,
+            max_blocks=request.max_blocks,
         )
     except InvalidInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
