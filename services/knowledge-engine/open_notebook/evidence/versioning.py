@@ -163,7 +163,10 @@ class DocumentChange(BaseModel):
             if self.content_changed:
                 raise ValueError("unchanged documents cannot have content changes")
         if self.change_type == DocumentChangeType.MODIFIED:
-            if (\n                self.previous_version_hash == self.current_version_hash\n                and not self.metadata_changed\n            ):
+            if (
+                self.previous_version_hash == self.current_version_hash
+                and not self.metadata_changed
+            ):
                 raise ValueError(
                     "modified documents must change the version hash or metadata"
                 )
