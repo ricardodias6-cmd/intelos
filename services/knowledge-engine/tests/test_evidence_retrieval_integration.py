@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass
 
 import pytest
+
 from open_notebook.ai.models import model_manager
 from open_notebook.database.async_migrate import AsyncMigrationManager
 from open_notebook.database.repository import repo_query
