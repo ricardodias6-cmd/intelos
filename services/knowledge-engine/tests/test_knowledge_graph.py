@@ -132,6 +132,8 @@ async def test_persistence_requires_real_evidence_and_is_idempotent_shape(
     assert result.evidence_links_upserted == 2
     assert len(upserts) == 3
     assert len(relations) == 2
-    assert relations[0]["relation_id"] == relations[1]["relation_id"] or (
-        relations[0]["relation_id"] != relations[1]["relation_id"]
-    )
+    relation_ids = {
+        relation["relation_id"]
+        for relation in relations
+    }
+    assert len(relation_ids) == 2
