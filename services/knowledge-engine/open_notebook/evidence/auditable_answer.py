@@ -498,6 +498,8 @@ async def build_auditable_answer(
         max_attempts=request.regeneration_attempts
     )
     claims: list[AnswerClaim] = []
+    accepted_claims: list[AnswerClaim] = []
+    last_non_presentable: list[AnswerClaim] = []
     rejected: list[RejectedCandidateClaim] = []
     embedding_models: set[str] = set()
     referenced_ids: set[str] = set()
@@ -522,10 +524,41 @@ async def build_auditable_answer(
         timings[validation_key] = round(
             (time.perf_counter() - validation_started) * 1000
         )
-        claims = attempt_claims
+
+        for attempt_claim in attempt_claims:
+            if not attempt_claim.is_presentable_fact:
+                continue
+            identity = (
+                attempt_claim.text.strip().casefold(),
+                attempt_claim.kind,
+                tuple(attempt_claim.evidence_ids),
+            )
+            existing_index = next(
+                (
+                    index
+                    for index, accepted_claim in enumerate(accepted_claims)
+                    if (
+                        accepted_claim.text.strip().casefold(),
+                        accepted_claim.kind,
+                        tuple(accepted_claim.evidence_ids),
+                    )
+                    == identity
+                ),
+                None,
+            )
+            if existing_index is None:
+                accepted_claims.append(attempt_claim)
+            else:
+                accepted_claims[existing_index] = attempt_claim
+
+        last_non_presentable = [
+            claim
+            for claim in attempt_claims
+            if not claim.is_presentable_fact
+        ]
         rejected = attempt_rejected
-        embedding_models = attempt_models
-        referenced_ids = attempt_referenced_ids
+        embedding_models.update(attempt_models)
+        referenced_ids.update(attempt_referenced_ids)
 
         if not rejected or attempt >= policy.max_attempts:
             break
@@ -541,7 +574,7 @@ async def build_auditable_answer(
             (time.perf_counter() - regeneration_started) * 1000
         )
 
-    claims = _assign_claim_ids(claims)
+    claims = _assign_claim_ids(accepted_claims + last_non_presentable)
 
     has_conflict = any(
         claim.support_status == SupportStatus.CONTRADICTED
