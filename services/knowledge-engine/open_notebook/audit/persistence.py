@@ -17,6 +17,7 @@ from open_notebook.database.repository import (
 )
 from open_notebook.exceptions import InvalidInputError
 
+
 def _stable_edge_id(audit_id: str, evidence_id: str, decision: str) -> str:
     digest = sha256(
         f"{audit_id}|{evidence_id}|{decision}".encode("utf-8")
