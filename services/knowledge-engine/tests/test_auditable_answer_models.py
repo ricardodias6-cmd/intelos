@@ -65,7 +65,7 @@ def test_claim_evidence_must_be_selected_and_cited() -> None:
         AuditableAnswer(
             answer="Resposta.",
             claims=[_direct_claim("EV_MISSING")],
-            citations=[_citation("EV_MISSING")],
+            citations=[_citation("EV_ONE")],
             overall_confidence=0.91,
             status=AuditableAnswerStatus.ANSWERED,
             audit=_audit("EV_ONE"),
