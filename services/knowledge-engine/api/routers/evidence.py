@@ -8,6 +8,10 @@ from open_notebook.evidence.retrieval import (
     index_evidence_blocks,
     retrieve_evidence,
 )
+from open_notebook.evidence.semantic_validation import (
+    SemanticValidationResult,
+    validate_claim_semantics,
+)
 from open_notebook.exceptions import InvalidInputError
 
 router = APIRouter()
@@ -40,6 +44,19 @@ class EvidenceIndexRequest(BaseModel):
     max_blocks: int = Field(default=5000, ge=1, le=100000)
 
 
+class ClaimSemanticValidationRequest(BaseModel):
+    claim: str = Field(min_length=1, max_length=10000)
+    evidence_ids: list[str] = Field(min_length=1, max_length=50)
+    direct_threshold: float = Field(default=0.82, ge=0.6, le=0.98)
+    partial_threshold: float = Field(default=0.58, ge=0.5, le=0.9)
+
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> "ClaimSemanticValidationRequest":
+        if self.direct_threshold <= self.partial_threshold:
+            raise ValueError("direct_threshold must be greater than partial_threshold")
+        return self
+
+
 @router.post("/evidence/search", response_model=EvidenceSearchResponse)
 async def search_evidence(request: EvidenceSearchRequest) -> EvidenceSearchResponse:
     try:
@@ -70,6 +87,24 @@ async def index_evidence(request: EvidenceIndexRequest) -> EvidenceIndexResult:
             force=request.force,
             batch_size=request.batch_size,
             max_blocks=request.max_blocks,
+        )
+    except InvalidInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/evidence/validate-claim",
+    response_model=SemanticValidationResult,
+)
+async def validate_claim_evidence(
+    request: ClaimSemanticValidationRequest,
+) -> SemanticValidationResult:
+    try:
+        return await validate_claim_semantics(
+            claim=request.claim,
+            evidence_ids=request.evidence_ids,
+            direct_threshold=request.direct_threshold,
+            partial_threshold=request.partial_threshold,
         )
     except InvalidInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
