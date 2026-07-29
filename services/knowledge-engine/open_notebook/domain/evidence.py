@@ -6,7 +6,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Any, ClassVar, Optional, Union
 
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from surrealdb import RecordID
 
 from open_notebook.database.repository import ensure_record_id, repo_query
@@ -21,6 +21,11 @@ from open_notebook.evidence.models import (
     NumericStatus,
     SupportStatus,
     VerificationStatus,
+)
+from open_notebook.evidence.versioning import (
+    DocumentChangeType,
+    DocumentVersionSnapshot,
+    DocumentVersionStatus,
 )
 from open_notebook.exceptions import InvalidInputError
 
@@ -69,9 +74,16 @@ class DocumentVersionRecord(EvidenceObjectModel):
     source: RecordReference
     version_hash: str
     extraction_method: ExtractionMethod
-    page_count: Optional[int] = None
+    page_count: Optional[int] = Field(default=None, ge=1)
     source_date: Optional[datetime] = None
     metadata: Optional[dict[str, Any]] = None
+    version_number: Optional[int] = Field(default=None, ge=1)
+    status: DocumentVersionStatus = DocumentVersionStatus.CURRENT
+    supersedes: Optional[RecordReference] = None
+    superseded_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+    change_type: DocumentChangeType = DocumentChangeType.NEW
+    change_summary: Optional[dict[str, Any]] = None
 
     @field_validator("source", mode="before")
     @classmethod
@@ -88,14 +100,32 @@ class DocumentVersionRecord(EvidenceObjectModel):
     def _prepare_save_data(self) -> dict[str, Any]:
         data = super()._prepare_save_data()
         data["source"] = ensure_record_id(_record_to_string(self.source))
+        if data.get("supersedes") is not None:
+            data["supersedes"] = ensure_record_id(
+                _record_to_string(data["supersedes"])
+            )
         return data
+
+    def to_snapshot(self) -> DocumentVersionSnapshot:
+        """Return the stable comparison projection used by change detection."""
+
+        return DocumentVersionSnapshot(
+            version_id=self.id,
+            source_id=_record_to_string(self.source),
+            version_hash=self.version_hash,
+            extraction_method=self.extraction_method,
+            page_count=self.page_count,
+            metadata=self.metadata or {},
+            status=self.status,
+            version_number=self.version_number,
+        )
 
     @classmethod
     async def get_for_source(cls, source_id: str) -> list["DocumentVersionRecord"]:
         if not source_id:
             raise InvalidInputError("Source ID is required")
         rows = await repo_query(
-            "SELECT * FROM document_version WHERE source = $source ORDER BY created DESC",
+            "SELECT * FROM document_version WHERE source = $source ORDER BY created DESC, id DESC",
             {"source": ensure_record_id(source_id)},
         )
         return [cls(**row) for row in rows]
