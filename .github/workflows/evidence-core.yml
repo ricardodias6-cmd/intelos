@@ -20,6 +20,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
       - services/knowledge-engine/tests/test_evidence_semantic_validation.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -35,6 +36,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
       - services/knowledge-engine/tests/test_evidence_semantic_validation.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -81,6 +83,7 @@ jobs:
           tests/test_evidence_retrieval.py
           tests/test_evidence_retrieval_integration.py
           tests/test_evidence_semantic_validation.py
+          tests/test_evidence_semantic_validation_regressions.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -89,6 +92,7 @@ jobs:
           tests/test_docling_evidence_adapter.py
           tests/test_evidence_retrieval.py
           tests/test_evidence_semantic_validation.py
+          tests/test_evidence_semantic_validation_regressions.py
 
   migration-integration:
     needs: test
