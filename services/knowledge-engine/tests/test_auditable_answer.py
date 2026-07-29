@@ -11,7 +11,7 @@ from open_notebook.evidence.auditable_answer import (
     CandidateClaim,
     build_auditable_answer,
 )
-from open_notebook.evidence.models import SupportStatus
+from open_notebook.evidence.models import ClaimKind, SupportStatus
 from open_notebook.evidence.retrieval import (
     EvidenceSearchHit,
     EvidenceSearchResponse,
@@ -38,6 +38,18 @@ class _LanguageModel:
     def with_structured_output(self, schema: Any) -> _StructuredModel:
         assert schema is CandidateAnswer
         return _StructuredModel(self.candidate)
+
+
+@pytest.fixture(autouse=True)
+def stub_audit_persistence(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_persist(report: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        auditable_answer,
+        "persist_audit_report",
+        fake_persist,
+    )
 
 
 def _hit(evidence_id: str = "EV_ONE") -> EvidenceSearchHit:
@@ -457,3 +469,66 @@ async def test_regeneration_preserves_valid_claims(
         claim.support_status == SupportStatus.DIRECT
         for claim in result.claims
     )
+
+
+@pytest.mark.asyncio
+async def test_answer_persists_audit_report_with_evidence_decisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate = CandidateAnswer(
+        answer="A autorização compete à entidade competente.",
+        claims=[
+            CandidateClaim(
+                text="A autorização compete à entidade competente.",
+                evidence_ids=["EV_ONE"],
+            ),
+            CandidateClaim(
+                text="Uma opinião não deve ser apresentada como facto.",
+                kind=ClaimKind.OPINION,
+                evidence_ids=["EV_TWO"],
+            ),
+        ],
+    )
+    reports: list[Any] = []
+
+    async def fake_retrieve(**kwargs: Any) -> EvidenceSearchResponse:
+        return _retrieval(_hit("EV_ONE"), _hit("EV_TWO"))
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _LanguageModel:
+        return _LanguageModel(candidate)
+
+    async def fake_validate(**kwargs: Any) -> SemanticValidationResult:
+        return _validation(SupportStatus.DIRECT, confidence=0.91)
+
+    async def fake_persist(report: Any) -> None:
+        reports.append(report)
+
+    monkeypatch.setattr(auditable_answer, "retrieve_evidence", fake_retrieve)
+    monkeypatch.setattr(
+        auditable_answer,
+        "provision_langchain_model",
+        fake_provision,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "validate_claim_semantics",
+        fake_validate,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "persist_audit_report",
+        fake_persist,
+    )
+
+    result = await build_auditable_answer(
+        AuditableAnswerRequest(question="Quem decide?")
+    )
+
+    assert result.answer_id is not None
+    assert result.audit_report_id is not None
+    assert len(reports) == 1
+    report = reports[0]
+    assert report.answer_id == result.answer_id
+    assert report.audit_id == result.audit_report_id
+    assert report.rejected_evidence_ids == ["EV_TWO"]
+    assert report.selected_evidence_ids == ["EV_ONE"]
