@@ -16,6 +16,7 @@ from open_notebook.utils.embedding import generate_embeddings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _NUMBER_RE = re.compile(r"(?<!\w)[+-]?\d+(?:[.,]\d+)?(?!\w)")
+_SEGMENT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 _NEGATION_TOKENS = {
     "não",
     "nao",
@@ -68,6 +69,14 @@ def _lexical_coverage(claim: str, evidence: str) -> float:
     return len(claim_tokens & set(_tokens(evidence))) / len(claim_tokens)
 
 
+def _most_relevant_segment(claim: str, evidence: str) -> tuple[str, float]:
+    segments = [segment.strip() for segment in _SEGMENT_RE.split(evidence) if segment.strip()]
+    if not segments:
+        return evidence, _lexical_coverage(claim, evidence)
+    ranked = [(segment, _lexical_coverage(claim, segment)) for segment in segments]
+    return max(ranked, key=lambda item: item[1])
+
+
 def _has_negation(text: str) -> bool:
     return bool(set(_tokens(text)) & _NEGATION_TOKENS)
 
@@ -115,9 +124,7 @@ async def validate_claim_semantics(
     by_id = {str(row.get("evidence_id")): row for row in rows}
     unresolved = [identifier for identifier in unique_ids if identifier not in by_id]
     if unresolved:
-        raise InvalidInputError(
-            "Evidence IDs not found: " + ", ".join(unresolved)
-        )
+        raise InvalidInputError("Evidence IDs not found: " + ", ".join(unresolved))
     resolved = [by_id[identifier] for identifier in unique_ids]
 
     rejected = [
@@ -162,9 +169,11 @@ async def validate_claim_semantics(
     findings: list[SemanticEvidenceFinding] = []
     for row, text, embedding in zip(resolved, evidence_texts, embeddings[1:], strict=True):
         semantic = _bounded_similarity(cosine_similarity(claim_embedding, embedding))
-        lexical = _lexical_coverage(normalized_claim, text)
-        relevant_for_conflict = semantic >= partial_threshold and lexical >= 0.45
-        evidence_numbers = _numbers(text)
+        relevant_segment, segment_coverage = _most_relevant_segment(normalized_claim, text)
+        relevant_for_conflict = (
+            semantic >= partial_threshold and segment_coverage >= 0.45
+        )
+        evidence_numbers = _numbers(relevant_segment)
         numeric_conflict = bool(
             relevant_for_conflict
             and claim_numbers
@@ -173,8 +182,8 @@ async def validate_claim_semantics(
         )
         polarity_conflict = bool(
             relevant_for_conflict
-            and lexical >= 0.55
-            and claim_negation != _has_negation(text)
+            and segment_coverage >= 0.55
+            and claim_negation != _has_negation(relevant_segment)
         )
         reasons: list[str] = []
         if numeric_conflict:
@@ -191,7 +200,7 @@ async def validate_claim_semantics(
             SemanticEvidenceFinding(
                 evidence_id=str(row["evidence_id"]),
                 semantic_score=round(semantic, 6),
-                lexical_coverage=round(lexical, 6),
+                lexical_coverage=round(segment_coverage, 6),
                 numeric_conflict=numeric_conflict,
                 polarity_conflict=polarity_conflict,
                 reasons=reasons,
