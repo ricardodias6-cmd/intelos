@@ -30,6 +30,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/api/main.py
+      - services/knowledge-engine/api/routers/evidence.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/graphs/source.py
