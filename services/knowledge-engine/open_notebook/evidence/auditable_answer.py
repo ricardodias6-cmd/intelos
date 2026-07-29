@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
+from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.audit import (
     AuditConflict,
     AuditEvidenceDecision,
@@ -17,7 +18,6 @@ from open_notebook.audit import (
     AuditTraceEvent,
     persist_audit_report,
 )
-from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
