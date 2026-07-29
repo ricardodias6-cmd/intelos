@@ -15,7 +15,7 @@ from open_notebook.database.repository import (
     repo_relate,
     repo_upsert,
 )
-from open_notebook.exceptions import InvalidInputError
+from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 
 def _stable_edge_id(audit_id: str, evidence_id: str, decision: str) -> str:
@@ -81,3 +81,17 @@ async def persist_audit_report(
         evidence_links_upserted=len(report.evidence_decisions),
         evidence_ids=evidence_ids,
     )
+
+
+async def get_audit_report(answer_id: str) -> AuditReport:
+    """Load the persisted audit report associated with one answer."""
+
+    rows = await repo_query(
+        "SELECT * FROM audit_report WHERE answer_id = $answer_id LIMIT 1",
+        {"answer_id": answer_id},
+    )
+    if not rows:
+        raise NotFoundError(
+            f"No audit report found for answer {answer_id}"
+        )
+    return AuditReport.model_validate(rows[0])
