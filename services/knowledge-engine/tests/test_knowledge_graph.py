@@ -9,8 +9,8 @@ from open_notebook.knowledge_graph import (
     KnowledgeEntity,
     KnowledgeGraphExtraction,
     KnowledgeRelation,
+    persistence,
 )
-from open_notebook.knowledge_graph import persistence
 
 
 def _extraction() -> KnowledgeGraphExtraction:
