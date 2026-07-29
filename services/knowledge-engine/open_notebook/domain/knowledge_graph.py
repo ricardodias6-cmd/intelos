@@ -6,15 +6,15 @@ from typing import Any, ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
-from open_notebook.evidence.models import (
-    KnowledgeEntityType,
-    KnowledgeRelationType,
-)
-from open_notebook.evidence.domain_compat import (
+from open_notebook.domain.evidence import (
     EvidenceObjectModel,
     RecordReference,
     _record_to_string,
     _validate_stable_id,
+)
+from open_notebook.knowledge_graph.models import (
+    KnowledgeEntityType,
+    KnowledgeRelationType,
 )
 
 
