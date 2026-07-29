@@ -290,7 +290,7 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 27
     _assert_audit_schema_present(await _database_schema())
-    _assert_versioning_schema_present(await _database_schema())
+    _assert_versioning_schema_absent(await _database_schema())
     _assert_reprocessing_schema_absent(await _database_schema())
 
     await manager.runner.run_one_down()
