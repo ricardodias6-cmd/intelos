@@ -114,6 +114,12 @@ class AnswerAuditMetadata(BaseModel):
 class AuditableAnswer(BaseModel):
     """Final response contract for the phase 4 pipeline."""
 
+    answer_id: str | None = Field(default=None, min_length=3, max_length=128)
+    audit_report_id: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=128,
+    )
     answer: str = Field(min_length=1, max_length=50000)
     claims: list[AnswerClaim] = Field(default_factory=list)
     citations: list[AnswerCitation] = Field(default_factory=list)
