@@ -45,6 +45,9 @@ on:
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
       - services/knowledge-engine/tests/test_evidence_semantic_validation.py
       - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
+      - services/knowledge-engine/tests/test_auditable_answer_models.py
+      - services/knowledge-engine/tests/test_auditable_answer.py
+      - services/knowledge-engine/tests/test_evidence_answer_api.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
