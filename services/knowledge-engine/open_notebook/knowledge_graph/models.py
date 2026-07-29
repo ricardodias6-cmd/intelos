@@ -45,6 +45,7 @@ class KnowledgeEntity(BaseModel):
     aliases: list[str] = Field(default_factory=list, max_length=50)
     description: str | None = Field(default=None, max_length=5000)
     metadata: dict[str, str] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(min_length=1, max_length=50)
     normalized_name: str | None = None
 
     @field_validator("entity_id")
@@ -123,6 +124,13 @@ class KnowledgeGraphExtraction(BaseModel):
         relation_ids = {relation.relation_id for relation in self.relations}
         if len(relation_ids) != len(self.relations):
             raise ValueError("knowledge graph relation IDs must be unique")
+        allowed_evidence_ids = set(self.evidence_ids)
+        for entity in self.entities:
+            if not set(entity.evidence_ids).issubset(allowed_evidence_ids):
+                raise ValueError(
+                    f"entity references evidence outside the extraction set: "
+                    f"{entity.entity_id}"
+                )
         for relation in self.relations:
             if relation.subject_entity_id not in entity_ids:
                 raise ValueError(
