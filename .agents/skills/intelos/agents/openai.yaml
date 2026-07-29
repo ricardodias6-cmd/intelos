@@ -1,0 +1,6 @@
+interface:
+  display_name: "Intelos"
+  short_description: "Repo-specific patterns and workflows for intelos"
+  default_prompt: "Use the intelos repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
