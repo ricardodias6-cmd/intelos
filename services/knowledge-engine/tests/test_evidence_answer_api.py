@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from api.main import app
+from open_notebook.audit import AuditReport
 from api.routers import evidence
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
@@ -128,3 +129,42 @@ async def test_answer_endpoint_rejects_invalid_request_shape() -> None:
 
     assert response.status_code == 422
     assert "candidate_limit" in response.text
+
+
+def _insufficient_audit_report() -> AuditReport:
+    return AuditReport(
+        audit_id="AUDIT_API_001",
+        answer_id="ANSWER_API_001",
+        question="Pergunta sem evidência",
+        question_hash="sha256:question",
+        answer="Não foi encontrada evidência suficiente.",
+        overall_confidence=0,
+        status=AuditableAnswerStatus.INSUFFICIENT_EVIDENCE,
+        pipeline_version="phase-7",
+    )
+
+
+@pytest.mark.asyncio
+async def test_audit_endpoint_returns_persisted_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_get(answer_id: str) -> AuditReport:
+        assert answer_id == "ANSWER_API_001"
+        return _insufficient_audit_report()
+
+    monkeypatch.setattr(evidence, "get_audit_report", fake_get)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/evidence/answer/ANSWER_API_001/audit"
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["audit_id"] == "AUDIT_API_001"
+    assert body["answer_id"] == "ANSWER_API_001"
+    assert body["status"] == "insufficient_evidence"
