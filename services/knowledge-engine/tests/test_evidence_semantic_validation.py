@@ -130,29 +130,16 @@ async def test_mixed_versions_for_same_source_are_rejected(
 
 
 @pytest.mark.asyncio
-async def test_unresolved_ids_remain_auditable(monkeypatch: pytest.MonkeyPatch) -> None:
-    await _install_model(monkeypatch)
-
+async def test_unresolved_ids_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_repo_query(
         query: str, variables: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         return [_row("EV_ONE", "A medida é autorizada pela entidade competente.")]
 
-    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
-        return [[1.0, 0.0], [1.0, 0.0]]
-
     monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
-    monkeypatch.setattr(
-        semantic_validation,
-        "generate_embeddings",
-        fake_generate_embeddings,
-    )
 
-    result = await validate_claim_semantics(
-        claim="A medida é autorizada pela entidade competente.",
-        evidence_ids=["EV_ONE", "EV_MISSING"],
-    )
-
-    assert result.recommended_support_status == SupportStatus.DIRECT
-    assert result.requires_human_review is True
-    assert result.unresolved_evidence_ids == ["EV_MISSING"]
+    with pytest.raises(InvalidInputError, match="Evidence IDs not found: EV_MISSING"):
+        await validate_claim_semantics(
+            claim="A medida é autorizada pela entidade competente.",
+            evidence_ids=["EV_ONE", "EV_MISSING"],
+        )
