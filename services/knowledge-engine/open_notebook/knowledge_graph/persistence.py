@@ -11,7 +11,7 @@ from open_notebook.database.repository import (
     repo_relate,
     repo_upsert,
 )
-from open_notebook.evidence.models import InvalidInputError
+from open_notebook.exceptions import InvalidInputError
 from open_notebook.knowledge_graph.models import (
     KnowledgeGraphExtraction,
     KnowledgeGraphPersistenceResult,
