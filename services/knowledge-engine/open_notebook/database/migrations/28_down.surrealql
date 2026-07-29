@@ -1,0 +1,21 @@
+-- Rollback Migration 28: remove autonomous document version lifecycle
+
+REMOVE EVENT IF EXISTS intelos_document_version_change_delete ON TABLE document_version;
+
+REMOVE INDEX IF EXISTS idx_document_change_current_version ON TABLE document_change;
+REMOVE INDEX IF EXISTS idx_document_change_type ON TABLE document_change;
+REMOVE INDEX IF EXISTS idx_document_change_source ON TABLE document_change;
+REMOVE INDEX IF EXISTS idx_document_change_id ON TABLE document_change;
+
+REMOVE TABLE IF EXISTS document_change;
+
+REMOVE INDEX IF EXISTS idx_document_version_source_number ON TABLE document_version;
+REMOVE INDEX IF EXISTS idx_document_version_source_status ON TABLE document_version;
+
+REMOVE FIELD IF EXISTS change_summary ON TABLE document_version;
+REMOVE FIELD IF EXISTS change_type ON TABLE document_version;
+REMOVE FIELD IF EXISTS revoked_at ON TABLE document_version;
+REMOVE FIELD IF EXISTS superseded_at ON TABLE document_version;
+REMOVE FIELD IF EXISTS supersedes ON TABLE document_version;
+REMOVE FIELD IF EXISTS status ON TABLE document_version;
+REMOVE FIELD IF EXISTS version_number ON TABLE document_version;
