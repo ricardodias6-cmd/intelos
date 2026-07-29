@@ -144,15 +144,21 @@ async def repo_relate(
     relationship: str,
     target: Union[str, RecordID],
     data: Optional[Dict[str, Any]] = None,
+    relation_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Create a relationship between two records with optional data"""
+    """Create a relationship between two records with optional data.
+
+    A deterministic relation_id can be supplied for idempotent graph edges.
+    """
     if data is None:
         data = {}
-    # relationship is an edge-table name, not a record value, so it can't be
-    # bound as a query parameter; validate it against an identifier allowlist
-    # instead of trusting the caller. source/target are always bound.
+    # relationship and relation_id are identifiers, not record values, so they
+    # cannot be bound as query parameters. Validate both before interpolation.
     _ensure_safe_identifier(relationship, "relationship")
-    query = f"RELATE $source->{relationship}->$target CONTENT $data;"
+    if relation_id is not None:
+        _ensure_safe_identifier(relation_id, "relation")
+    edge = f"{relationship}:{relation_id}" if relation_id else relationship
+    query = f"RELATE $source->{edge}->$target CONTENT $data;"
     # logger.debug(f"Relate query: {query}")
 
     return await repo_query(
