@@ -33,11 +33,13 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/graphs/source.py
@@ -95,6 +97,8 @@ jobs:
           api/routers/knowledge_graph.py
           open_notebook/evidence
           open_notebook/domain/evidence.py
+          open_notebook/domain/knowledge_graph.py
+          open_notebook/knowledge_graph
           open_notebook/graphs/source.py
           open_notebook/database/async_migrate.py
           tests/test_evidence_core.py
@@ -107,6 +111,7 @@ jobs:
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
+          tests/test_knowledge_graph.py
           tests/test_knowledge_graph.py
 
       - name: Run Evidence Core unit tests
