@@ -1,8 +1,11 @@
 -- Rollback migration 25
 
+REMOVE INDEX IF EXISTS idx_evidence_indexing_status ON TABLE evidence_block;
 REMOVE INDEX IF EXISTS idx_evidence_section_path ON TABLE evidence_block;
 REMOVE INDEX IF EXISTS idx_evidence_block_type ON TABLE evidence_block;
 REMOVE INDEX IF EXISTS idx_evidence_version_page ON TABLE evidence_block;
 REMOVE INDEX IF EXISTS idx_evidence_source_version ON TABLE evidence_block;
+REMOVE FIELD IF EXISTS indexing_error ON TABLE evidence_block;
+REMOVE FIELD IF EXISTS indexing_status ON TABLE evidence_block;
 REMOVE FIELD IF EXISTS embedded_text_hash ON TABLE evidence_block;
 REMOVE FIELD IF EXISTS embedding_model ON TABLE evidence_block;
