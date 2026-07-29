@@ -5,11 +5,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from open_notebook.exceptions import InvalidInputError
+
 from open_notebook.knowledge_graph import (
     KnowledgeEntity,
     KnowledgeGraphExtraction,
     KnowledgeRelation,
     persistence,
+    extraction,
 )
 
 
@@ -58,6 +61,7 @@ def test_graph_rejects_relation_with_unknown_entity() -> None:
                 KnowledgeEntity(
                     entity_id="ENT_ONLY",
                     canonical_name="Apenas uma entidade",
+                    evidence_ids=["EV_ONE"],
                 )
             ],
             relations=[
@@ -83,6 +87,7 @@ def test_graph_rejects_entity_with_outside_evidence() -> None:
                 KnowledgeEntity(
                     entity_id="ENT_ONE",
                     canonical_name="Uma entidade",
+                    evidence_ids=["EV_ONE"],
                     evidence_ids=["EV_MISSING"],
                 )
             ],
@@ -104,6 +109,7 @@ def test_graph_rejects_relation_with_outside_evidence() -> None:
                 KnowledgeEntity(
                     entity_id="ENT_TWO",
                     canonical_name="Outra entidade",
+                    evidence_ids=["EV_ONE"],
                 ),
             ],
             relations=[
@@ -156,3 +162,107 @@ async def test_persistence_requires_real_evidence_and_is_idempotent_shape(
         for relation in relations
     }
     assert len(relation_ids) == 2
+
+
+class _StructuredGraphModel:
+    def __init__(self, extraction: KnowledgeGraphExtraction) -> None:
+        self.extraction = extraction
+        self.prompt = ""
+
+    async def ainvoke(self, prompt: str) -> KnowledgeGraphExtraction:
+        self.prompt = prompt
+        return self.extraction
+
+
+class _GraphLanguageModel:
+    def __init__(self, extraction: KnowledgeGraphExtraction) -> None:
+        self.structured = _StructuredGraphModel(extraction)
+
+    def with_structured_output(self, schema: Any) -> _StructuredGraphModel:
+        assert schema is KnowledgeGraphExtraction
+        return self.structured
+
+
+@pytest.mark.asyncio
+async def test_extraction_is_bound_to_selected_evidence_and_persisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    language_model = _GraphLanguageModel(_extraction())
+    persisted = persistence.KnowledgeGraphPersistenceResult(
+        entities_upserted=2,
+        relations_upserted=1,
+        evidence_links_upserted=2,
+        evidence_ids=["EV_ONE"],
+    )
+
+    async def fake_query(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "evidence_block:one",
+                "evidence_id": "EV_ONE",
+                "source": "source:one",
+                "document_version": "document_version:one",
+                "raw_text": "A entidade competente aplica-se à autorização.",
+            }
+        ]
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _GraphLanguageModel:
+        return language_model
+
+    async def fake_persist(
+        extraction: KnowledgeGraphExtraction,
+    ) -> persistence.KnowledgeGraphPersistenceResult:
+        assert extraction.evidence_ids == ["EV_ONE"]
+        return persisted
+
+    monkeypatch.setattr(extraction, "repo_query", fake_query)
+    monkeypatch.setattr(extraction, "provision_langchain_model", fake_provision)
+    monkeypatch.setattr(extraction, "persist_knowledge_graph", fake_persist)
+
+    result = await extraction.extract_and_persist_knowledge_graph(
+        extraction.KnowledgeGraphExtractionRequest(evidence_ids=["EV_ONE"])
+    )
+
+    assert result.persistence == persisted
+    assert "[Evidence ID: EV_ONE]" in language_model.structured.prompt
+
+
+@pytest.mark.asyncio
+async def test_extraction_rejects_model_evidence_outside_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invalid = _extraction().model_copy(
+        update={
+            "evidence_ids": ["EV_OUTSIDE"],
+            "entities": [
+                entity.model_copy(update={"evidence_ids": ["EV_OUTSIDE"]})
+                for entity in _extraction().entities
+            ],
+            "relations": [
+                relation.model_copy(update={"evidence_ids": ["EV_OUTSIDE"]})
+                for relation in _extraction().relations
+            ],
+        }
+    )
+
+    async def fake_query(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "evidence_block:one",
+                "evidence_id": "EV_ONE",
+                "source": "source:one",
+                "document_version": "document_version:one",
+                "raw_text": "Texto.",
+            }
+        ]
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _GraphLanguageModel:
+        return _GraphLanguageModel(invalid)
+
+    monkeypatch.setattr(extraction, "repo_query", fake_query)
+    monkeypatch.setattr(extraction, "provision_langchain_model", fake_provision)
+
+    with pytest.raises(InvalidInputError, match="outside the selected set"):
+        await extraction.extract_knowledge_graph(
+            extraction.KnowledgeGraphExtractionRequest(evidence_ids=["EV_ONE"])
+        )
