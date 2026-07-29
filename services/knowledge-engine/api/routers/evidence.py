@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from open_notebook.audit import AuditReport, get_audit_report
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
     build_auditable_answer,
@@ -17,7 +18,7 @@ from open_notebook.evidence.semantic_validation import (
     SemanticValidationResult,
     validate_claim_semantics,
 )
-from open_notebook.exceptions import InvalidInputError
+from open_notebook.exceptions import InvalidInputError, NotFoundError
 
 router = APIRouter()
 
@@ -126,3 +127,14 @@ async def answer_with_evidence(
         return await build_auditable_answer(request)
     except InvalidInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/evidence/answer/{answer_id}/audit",
+    response_model=AuditReport,
+)
+async def get_answer_audit_report(answer_id: str) -> AuditReport:
+    try:
+        return await get_audit_report(answer_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

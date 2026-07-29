@@ -1,0 +1,63 @@
+-- Migration 27: explainable answer audit reports
+
+DEFINE TABLE IF NOT EXISTS audit_report SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS audit_id ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS answer_id ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS question ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS question_hash ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS answer ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS claims ON audit_report FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS citations ON audit_report FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS overall_confidence ON TABLE audit_report TYPE float;
+DEFINE FIELD IF NOT EXISTS requires_human_review ON TABLE audit_report TYPE bool;
+DEFINE FIELD IF NOT EXISTS status ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS selected_evidence_ids ON TABLE audit_report TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS rejected_evidence_ids ON TABLE audit_report TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS evidence_decisions ON audit_report FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS conflicts ON audit_report FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS trace ON audit_report FLEXIBLE TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS pipeline_version ON TABLE audit_report TYPE string;
+DEFINE FIELD IF NOT EXISTS embedding_model ON TABLE audit_report TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS generated_at ON TABLE audit_report TYPE datetime;
+DEFINE FIELD IF NOT EXISTS metadata ON audit_report FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS created ON audit_report DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON audit_report DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_audit_report_audit_id
+ON TABLE audit_report FIELDS audit_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_audit_report_answer_id
+ON TABLE audit_report FIELDS answer_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_audit_report_status
+ON TABLE audit_report FIELDS status;
+DEFINE INDEX IF NOT EXISTS idx_audit_report_generated_at
+ON TABLE audit_report FIELDS generated_at;
+
+DEFINE TABLE IF NOT EXISTS audit_evidence
+TYPE RELATION FROM audit_report TO evidence_block SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS evidence_id ON TABLE audit_evidence TYPE string;
+DEFINE FIELD IF NOT EXISTS decision ON TABLE audit_evidence TYPE string;
+DEFINE FIELD IF NOT EXISTS reason ON TABLE audit_evidence TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS retrieval_score ON TABLE audit_evidence TYPE option<float>;
+DEFINE FIELD IF NOT EXISTS rank ON TABLE audit_evidence TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS created ON audit_evidence DEFAULT time::now() VALUE $before OR time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_audit_evidence_id
+ON TABLE audit_evidence FIELDS evidence_id;
+DEFINE INDEX IF NOT EXISTS idx_audit_evidence_decision
+ON TABLE audit_evidence FIELDS decision;
+DEFINE INDEX IF NOT EXISTS idx_audit_evidence_endpoints
+ON TABLE audit_evidence FIELDS in, out;
+
+DEFINE EVENT IF NOT EXISTS intelos_audit_report_delete
+ON TABLE audit_report
+WHEN ($after == NONE)
+THEN {
+    DELETE audit_evidence WHERE in == $before.id;
+};
+
+DEFINE EVENT IF NOT EXISTS intelos_audit_evidence_delete
+ON TABLE evidence_block
+WHEN ($after == NONE)
+THEN {
+    DELETE audit_evidence WHERE out == $before.id;
+};

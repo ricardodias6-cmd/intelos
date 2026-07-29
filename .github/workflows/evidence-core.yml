@@ -8,6 +8,7 @@ on:
       - agent/phase-3
       - agent/phase-4
       - agent/phase-6
+      - agent/phase-7
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -17,11 +18,13 @@ on:
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
       - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/audit/**
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -33,6 +36,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
+      - services/knowledge-engine/tests/test_audit_report.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -41,11 +45,15 @@ on:
       - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/audit/**
       - services/knowledge-engine/open_notebook/graphs/source.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
       - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -57,6 +65,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
+      - services/knowledge-engine/tests/test_audit_report.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -100,6 +109,7 @@ jobs:
           open_notebook/domain/evidence.py
           open_notebook/domain/knowledge_graph.py
           open_notebook/knowledge_graph
+          open_notebook/audit
           open_notebook/graphs/source.py
           open_notebook/database/async_migrate.py
           tests/test_evidence_core.py
@@ -126,6 +136,7 @@ jobs:
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
           tests/test_knowledge_graph.py
+          tests/test_audit_report.py
 
   migration-integration:
     needs: test
