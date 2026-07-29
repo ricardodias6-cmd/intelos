@@ -34,6 +34,7 @@ from api.routers import (
     evidence,
     insights,
     languages,
+    knowledge_graph,
     models,
     notebooks,
     notes,
@@ -390,6 +391,7 @@ app.include_router(transformations.router, prefix="/api", tags=["transformations
 app.include_router(notes.router, prefix="/api", tags=["notes"])
 app.include_router(embedding.router, prefix="/api", tags=["embedding"])
 app.include_router(evidence.router, prefix="/api", tags=["evidence"])
+app.include_router(knowledge_graph.router, prefix="/api", tags=["knowledge-graph"])
 app.include_router(
     embedding_rebuild.router, prefix="/api/embeddings", tags=["embeddings"]
 )
