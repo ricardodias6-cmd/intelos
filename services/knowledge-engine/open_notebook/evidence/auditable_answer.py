@@ -5,9 +5,6 @@ from __future__ import annotations
 import hashlib
 import time
 from collections.abc import Sequence
-from typing import Any
-
-from loguru import logger
 from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.ai.provision import provision_langchain_model
@@ -139,7 +136,7 @@ def _invalid_claim(
     qualification: str,
 ) -> AnswerClaim:
     return AnswerClaim(
-        claim_id="",
+        claim_id="PENDING",
         text=candidate.text,
         kind=candidate.kind,
         evidence_ids=[],
@@ -207,7 +204,7 @@ def _validated_claim(
 
 def _assign_claim_ids(claims: Sequence[AnswerClaim]) -> list[AnswerClaim]:
     return [
-        claim.model_copy(update={"claim_id": f"CLM_{index:03d}")
+        claim.model_copy(update={"claim_id": f"CLM_{index:03d}"})
         for index, claim in enumerate(claims, start=1)
     ]
 
@@ -439,9 +436,7 @@ async def build_auditable_answer(
     claims = _assign_claim_ids(claims)
 
     has_conflict = any(
-        claim.support_status
-        in {SupportStatus.CONTRADICTED, SupportStatus.PARTIAL}
-        or claim.requires_human_review
+        claim.support_status == SupportStatus.CONTRADICTED
         for claim in claims
     )
     answer_text, status = _render_final_answer(
