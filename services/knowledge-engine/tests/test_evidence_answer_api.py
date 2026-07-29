@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 from api.main import app
-from open_notebook.audit import AuditReport
 from api.routers import evidence
+from open_notebook.audit import AuditReport
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
