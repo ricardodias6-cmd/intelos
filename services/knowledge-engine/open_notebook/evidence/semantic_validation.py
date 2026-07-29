@@ -80,6 +80,10 @@ def _record_identifier(value: Any) -> str:
     return str(value)
 
 
+def _bounded_similarity(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
 async def validate_claim_semantics(
     *,
     claim: str,
@@ -110,21 +114,11 @@ async def validate_claim_semantics(
     )
     by_id = {str(row.get("evidence_id")): row for row in rows}
     unresolved = [identifier for identifier in unique_ids if identifier not in by_id]
-    resolved = [by_id[identifier] for identifier in unique_ids if identifier in by_id]
-
-    if not resolved:
-        return SemanticValidationResult(
-            claim=normalized_claim,
-            recommended_support_status=SupportStatus.UNSUPPORTED,
-            confidence=1.0,
-            requires_human_review=True,
-            evidence_findings=[],
-            unresolved_evidence_ids=unresolved,
-            embedding_model="unavailable",
-            direct_threshold=direct_threshold,
-            partial_threshold=partial_threshold,
-            reasons=["Nenhum Evidence ID foi resolvido no registo."],
+    if unresolved:
+        raise InvalidInputError(
+            "Evidence IDs not found: " + ", ".join(unresolved)
         )
+    resolved = [by_id[identifier] for identifier in unique_ids]
 
     rejected = [
         str(row["evidence_id"])
@@ -142,8 +136,7 @@ async def validate_claim_semantics(
         source = _record_identifier(row.get("source"))
         version = _record_identifier(row.get("document_version"))
         versions_by_source.setdefault(source, set()).add(version)
-    mixed_sources = [source for source, versions in versions_by_source.items() if len(versions) > 1]
-    if mixed_sources:
+    if any(len(versions) > 1 for versions in versions_by_source.values()):
         raise InvalidInputError(
             "Semantic validation cannot mix document versions for the same source"
         )
@@ -168,13 +161,21 @@ async def validate_claim_semantics(
     claim_negation = _has_negation(normalized_claim)
     findings: list[SemanticEvidenceFinding] = []
     for row, text, embedding in zip(resolved, evidence_texts, embeddings[1:], strict=True):
-        semantic = cosine_similarity(claim_embedding, embedding)
+        semantic = _bounded_similarity(cosine_similarity(claim_embedding, embedding))
         lexical = _lexical_coverage(normalized_claim, text)
+        relevant_for_conflict = semantic >= partial_threshold and lexical >= 0.45
         evidence_numbers = _numbers(text)
         numeric_conflict = bool(
-            claim_numbers and evidence_numbers and claim_numbers.isdisjoint(evidence_numbers)
+            relevant_for_conflict
+            and claim_numbers
+            and evidence_numbers
+            and claim_numbers.isdisjoint(evidence_numbers)
         )
-        polarity_conflict = claim_negation != _has_negation(text) and lexical >= 0.45
+        polarity_conflict = bool(
+            relevant_for_conflict
+            and lexical >= 0.55
+            and claim_negation != _has_negation(text)
+        )
         reasons: list[str] = []
         if numeric_conflict:
             reasons.append("Os valores numéricos relevantes não coincidem.")
@@ -197,47 +198,58 @@ async def validate_claim_semantics(
             )
         )
 
-    best_score = max(finding.semantic_score for finding in findings)
-    conflict_findings = [
+    non_conflicting = [
+        finding
+        for finding in findings
+        if not finding.numeric_conflict and not finding.polarity_conflict
+    ]
+    conflicting = [
         finding
         for finding in findings
         if finding.numeric_conflict or finding.polarity_conflict
     ]
+    best_support = max((finding.semantic_score for finding in non_conflicting), default=0.0)
+    best_conflict = max((finding.semantic_score for finding in conflicting), default=0.0)
     reasons: list[str] = []
-    if conflict_findings:
+
+    if conflicting and best_support >= direct_threshold:
+        status = SupportStatus.PARTIAL
+        confidence = max(best_support, best_conflict)
+        human_review = True
+        reasons.append(
+            "Existem sinais mistos: evidência de suporte direto e evidência materialmente conflitante."
+        )
+    elif conflicting:
         status = SupportStatus.CONTRADICTED
         confidence = max(
             max(finding.lexical_coverage, finding.semantic_score)
-            for finding in conflict_findings
+            for finding in conflicting
         )
         human_review = True
-        reasons.append("Existe pelo menos um conflito material nos blocos avaliados.")
-    elif best_score >= direct_threshold:
+        reasons.append("Existe evidência relevante com conflito material.")
+    elif best_support >= direct_threshold:
         status = SupportStatus.DIRECT
-        confidence = best_score
-        human_review = bool(unresolved or best_score < direct_threshold + 0.05)
+        confidence = best_support
+        human_review = best_support < direct_threshold + 0.05
         reasons.append("A melhor evidência ultrapassa o limiar de suporte direto.")
-    elif best_score >= partial_threshold:
+    elif best_support >= partial_threshold:
         status = SupportStatus.PARTIAL
-        confidence = best_score
+        confidence = best_support
         human_review = True
         reasons.append("A evidência apenas ultrapassa o limiar de suporte parcial.")
     else:
         status = SupportStatus.UNSUPPORTED
-        confidence = 1.0 - best_score
+        confidence = 1.0 - best_support
         human_review = True
         reasons.append("Nenhuma evidência ultrapassa o limiar mínimo de suporte.")
-
-    if unresolved:
-        reasons.append("Existem Evidence IDs não resolvidos.")
 
     return SemanticValidationResult(
         claim=normalized_claim,
         recommended_support_status=status,
-        confidence=round(max(0.0, min(1.0, confidence)), 6),
+        confidence=round(_bounded_similarity(confidence), 6),
         requires_human_review=human_review,
         evidence_findings=findings,
-        unresolved_evidence_ids=unresolved,
+        unresolved_evidence_ids=[],
         embedding_model=model_name,
         direct_threshold=direct_threshold,
         partial_threshold=partial_threshold,
