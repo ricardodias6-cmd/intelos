@@ -5,6 +5,7 @@ on:
     branches:
       - agent/evidence-core-foundation
       - agent/phase-2
+      - agent/phase-3
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/open_notebook/evidence/**
@@ -18,6 +19,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
       - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -32,6 +34,7 @@ on:
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
       - services/knowledge-engine/tests/test_evidence_retrieval.py
       - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -77,6 +80,7 @@ jobs:
           tests/test_evidence_migration_integration.py
           tests/test_evidence_retrieval.py
           tests/test_evidence_retrieval_integration.py
+          tests/test_evidence_semantic_validation.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -84,6 +88,7 @@ jobs:
           tests/test_evidence_core.py
           tests/test_docling_evidence_adapter.py
           tests/test_evidence_retrieval.py
+          tests/test_evidence_semantic_validation.py
 
   migration-integration:
     needs: test
