@@ -16,6 +16,10 @@ from open_notebook.evidence.auditable_models import (
     AuditableAnswer,
     AuditableAnswerStatus,
 )
+from open_notebook.evidence.evidence_aware_generation import (
+    EvidenceAwareGenerationPolicy,
+    RejectedCandidateClaim,
+)
 from open_notebook.evidence.models import ClaimKind, SupportStatus
 from open_notebook.evidence.retrieval import (
     EvidenceSearchFilters,
@@ -40,6 +44,7 @@ class AuditableAnswerRequest(BaseModel):
     version_hash: str | None = None
     direct_threshold: float = Field(default=0.82, ge=0.6, le=0.98)
     partial_threshold: float = Field(default=0.58, ge=0.5, le=0.9)
+    regeneration_attempts: int = Field(default=1, ge=0, le=2)
 
     @model_validator(mode="after")
     def validate_limits(self) -> "AuditableAnswerRequest":
@@ -105,9 +110,11 @@ def _render_evidence_context(hits: Sequence[EvidenceSearchHit]) -> str:
 def _build_generation_prompt(
     question: str,
     hits: Sequence[EvidenceSearchHit],
+    *,
+    feedback: str = "",
 ) -> str:
     evidence_context = _render_evidence_context(hits)
-    return f"""
+    prompt = f"""
 You are generating a candidate answer for the Intelos auditable evidence pipeline.
 
 Question:
@@ -129,6 +136,9 @@ Return the requested structured schema:
 Evidence blocks:
 {evidence_context}
 """.strip()
+    if feedback:
+        prompt = f"{prompt}\n\n{feedback}"
+    return prompt
 
 
 def _invalid_claim(
@@ -277,8 +287,13 @@ async def _generate_candidate(
     hits: Sequence[EvidenceSearchHit],
     *,
     model_id: str | None,
+    feedback: str = "",
 ) -> CandidateAnswer:
-    prompt = _build_generation_prompt(request.question, hits)
+    prompt = _build_generation_prompt(
+        request.question,
+        hits,
+        feedback=feedback,
+    )
     model = await provision_langchain_model(
         prompt,
         model_id,
@@ -295,6 +310,119 @@ async def _generate_candidate(
     raise RuntimeError(
         "The language model returned an unsupported structured-answer type"
     )
+
+
+async def _validate_candidate_claims(
+    candidate: CandidateAnswer,
+    request: AuditableAnswerRequest,
+    *,
+    selected_ids: Sequence[str],
+) -> tuple[
+    list[AnswerClaim],
+    list[RejectedCandidateClaim],
+    set[str],
+    set[str],
+]:
+    selected_id_set = set(selected_ids)
+    claims: list[AnswerClaim] = []
+    rejected: list[RejectedCandidateClaim] = []
+    embedding_models: set[str] = set()
+    referenced_ids: set[str] = set()
+
+    for candidate_claim in candidate.claims:
+        candidate_ids = list(
+            dict.fromkeys(
+                evidence_id.strip()
+                for evidence_id in candidate_claim.evidence_ids
+                if evidence_id.strip()
+            )
+        )
+        if not candidate_ids:
+            reason = (
+                "A afirmação não indicou Evidence IDs e foi removida "
+                "da resposta factual."
+            )
+            claims.append(
+                _invalid_claim(candidate_claim, qualification=reason)
+            )
+            rejected.append(
+                RejectedCandidateClaim(
+                    text=candidate_claim.text,
+                    evidence_ids=[],
+                    reason=reason,
+                )
+            )
+            continue
+
+        if not set(candidate_ids).issubset(selected_id_set):
+            reason = (
+                "A afirmação referenciou Evidence IDs fora do conjunto "
+                "recuperado e foi removida."
+            )
+            claims.append(
+                _invalid_claim(candidate_claim, qualification=reason)
+            )
+            rejected.append(
+                RejectedCandidateClaim(
+                    text=candidate_claim.text,
+                    evidence_ids=candidate_ids,
+                    reason=reason,
+                )
+            )
+            continue
+
+        if candidate_claim.kind in {
+            ClaimKind.OPINION,
+            ClaimKind.USER_PROVIDED,
+        }:
+            reason = (
+                "Inferências, opiniões e conteúdo fornecido pelo "
+                "utilizador não são apresentados como factos na Fase 5."
+            )
+            claims.append(
+                _invalid_claim(candidate_claim, qualification=reason)
+            )
+            rejected.append(
+                RejectedCandidateClaim(
+                    text=candidate_claim.text,
+                    evidence_ids=candidate_ids,
+                    reason=reason,
+                )
+            )
+            continue
+
+        result = await validate_claim_semantics(
+            claim=candidate_claim.text,
+            evidence_ids=candidate_ids,
+            direct_threshold=request.direct_threshold,
+            partial_threshold=request.partial_threshold,
+        )
+        embedding_models.add(result.embedding_model)
+        referenced_ids.update(candidate_ids)
+        validated_claim = _validated_claim(
+            candidate_claim,
+            result,
+            evidence_ids=candidate_ids,
+        )
+        claims.append(validated_claim)
+
+        if result.recommended_support_status in {
+            SupportStatus.UNSUPPORTED,
+            SupportStatus.CONTRADICTED,
+        }:
+            rejected.append(
+                RejectedCandidateClaim(
+                    text=candidate_claim.text,
+                    evidence_ids=candidate_ids,
+                    reason=" ".join(result.reasons)
+                    or (
+                        "A claim não alcançou suporte suficiente para "
+                        "apresentação factual."
+                    ),
+                )
+            )
+
+    return claims, rejected, embedding_models, referenced_ids
 
 
 async def build_auditable_answer(
@@ -335,6 +463,7 @@ async def build_auditable_answer(
         "retrieval_scores": retrieval_scores,
         "direct_threshold": request.direct_threshold,
         "partial_threshold": request.partial_threshold,
+        "pipeline_version": "phase-5",
         "stage_durations_ms": timings,
     }
 
@@ -365,74 +494,53 @@ async def build_auditable_answer(
         (time.perf_counter() - generation_started) * 1000
     )
 
-    selected_id_set = set(selected_ids)
+    policy = EvidenceAwareGenerationPolicy(
+        max_attempts=request.regeneration_attempts
+    )
     claims: list[AnswerClaim] = []
+    rejected: list[RejectedCandidateClaim] = []
     embedding_models: set[str] = set()
     referenced_ids: set[str] = set()
 
-    validation_started = time.perf_counter()
-    for candidate_claim in candidate.claims:
-        candidate_ids = list(dict.fromkeys(
-            evidence_id.strip() for evidence_id in candidate_claim.evidence_ids
-        ))
-        if not candidate_ids:
-            claims.append(
-                _invalid_claim(
-                    candidate_claim,
-                    qualification=(
-                        "A afirmação não indicou Evidence IDs e foi removida "
-                        "da resposta factual."
-                    ),
-                )
-            )
-            continue
-
-        if not set(candidate_ids).issubset(selected_id_set):
-            claims.append(
-                _invalid_claim(
-                    candidate_claim,
-                    qualification=(
-                        "A afirmação referenciou Evidence IDs fora do conjunto "
-                        "recuperado e foi removida."
-                    ),
-                )
-            )
-            continue
-
-        if candidate_claim.kind in {
-            ClaimKind.OPINION,
-            ClaimKind.USER_PROVIDED,
-        }:
-            claims.append(
-                _invalid_claim(
-                    candidate_claim,
-                    qualification=(
-                        "Inferências, opiniões e conteúdo fornecido pelo "
-                        "utilizador não são apresentados como factos na Fase 4."
-                    ),
-                )
-            )
-            continue
-
-        result = await validate_claim_semantics(
-            claim=candidate_claim.text,
-            evidence_ids=candidate_ids,
-            direct_threshold=request.direct_threshold,
-            partial_threshold=request.partial_threshold,
+    for attempt in range(policy.max_attempts + 1):
+        validation_started = time.perf_counter()
+        (
+            attempt_claims,
+            attempt_rejected,
+            attempt_models,
+            attempt_referenced_ids,
+        ) = await _validate_candidate_claims(
+            candidate,
+            request,
+            selected_ids=selected_ids,
         )
-        embedding_models.add(result.embedding_model)
-        referenced_ids.update(candidate_ids)
-        claims.append(
-            _validated_claim(
-                candidate_claim,
-                result,
-                evidence_ids=candidate_ids,
-            )
+        validation_key = (
+            "validation"
+            if attempt == 0
+            else f"validation_regeneration_{attempt}"
+        )
+        timings[validation_key] = round(
+            (time.perf_counter() - validation_started) * 1000
+        )
+        claims = attempt_claims
+        rejected = attempt_rejected
+        embedding_models = attempt_models
+        referenced_ids = attempt_referenced_ids
+
+        if not rejected or attempt >= policy.max_attempts:
+            break
+
+        regeneration_started = time.perf_counter()
+        candidate = await _generate_candidate(
+            request,
+            hits,
+            model_id=model_id,
+            feedback=policy.feedback(rejected, attempt + 1),
+        )
+        timings[f"regeneration_{attempt + 1}"] = round(
+            (time.perf_counter() - regeneration_started) * 1000
         )
 
-    timings["validation"] = round(
-        (time.perf_counter() - validation_started) * 1000
-    )
     claims = _assign_claim_ids(claims)
 
     has_conflict = any(
