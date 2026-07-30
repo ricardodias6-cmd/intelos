@@ -105,6 +105,81 @@ async def test_modified_version_is_possibly_outdated(
 
 
 @pytest.mark.asyncio
+async def test_current_version_with_own_change_remains_current(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "open_notebook.audit.freshness.repo_query",
+        _rows_for(
+            evidence=[
+                {
+                    "evidence_id": "EV_CURRENT",
+                    "document_version": "document_version:two",
+                    "document_version_hash": "hash-two",
+                }
+            ],
+            versions=[
+                {
+                    "id": "document_version:two",
+                    "status": "current",
+                    "version_hash": "hash-two",
+                }
+            ],
+            changes=[
+                {
+                    "id": "document_change:one",
+                    "change_id": "CHANGE_ONE",
+                    "change_type": "modified",
+                    "previous_version": "document_version:one",
+                    "current_version": "document_version:two",
+                    "previous_version_hash": "hash-one",
+                    "current_version_hash": "hash-two",
+                }
+            ],
+        ),
+    )
+
+    result = await evaluate_audit_freshness(["EV_CURRENT"])
+
+    assert result.status == AuditFreshnessStatus.CURRENT
+    assert result.requires_revalidation is False
+    assert result.change_ids == []
+    assert result.affected_evidence_ids == []
+
+
+@pytest.mark.asyncio
+async def test_unknown_version_status_requires_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "open_notebook.audit.freshness.repo_query",
+        _rows_for(
+            evidence=[
+                {
+                    "evidence_id": "EV_UNKNOWN",
+                    "document_version": "document_version:one",
+                    "document_version_hash": "hash-one",
+                }
+            ],
+            versions=[
+                {
+                    "id": "document_version:one",
+                    "status": None,
+                    "version_hash": "hash-one",
+                }
+            ],
+            changes=[],
+        ),
+    )
+
+    result = await evaluate_audit_freshness(["EV_UNKNOWN"])
+
+    assert result.status == AuditFreshnessStatus.UNKNOWN
+    assert result.requires_revalidation is True
+    assert result.affected_evidence_ids == ["EV_UNKNOWN"]
+
+
+@pytest.mark.asyncio
 async def test_revoked_version_is_outdated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
