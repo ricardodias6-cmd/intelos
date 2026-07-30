@@ -2,11 +2,11 @@
 
 from open_notebook.audit.models import (
     AuditConflict,
-    AuditFreshness,
-    AuditFreshnessStatus,
     AuditConflictSeverity,
     AuditEvidenceDecision,
     AuditEvidenceDecisionType,
+    AuditFreshness,
+    AuditFreshnessStatus,
     AuditReport,
     AuditReportPersistenceResult,
     AuditTraceEvent,
