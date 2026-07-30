@@ -16,6 +16,7 @@ from open_notebook.audit.persistence import (
     get_audit_freshness,
     get_audit_presentation,
     get_audit_report,
+    get_audit_report_by_id,
     list_audit_reports,
     persist_audit_report,
 )
@@ -26,6 +27,15 @@ from open_notebook.audit.presentation import (
     build_audit_presentation,
 )
 from open_notebook.audit.query import AuditReportPage, AuditReportQuery
+from open_notebook.audit.revalidation import (
+    AuditRevalidationRecord,
+    AuditRevalidationRequest,
+    AuditRevalidationResult,
+    AuditRevalidationStatus,
+    get_audit_revalidation,
+    persist_audit_revalidation,
+    revalidate_audit_report,
+)
 
 __all__ = [
     "AuditConflict",
@@ -41,12 +51,20 @@ __all__ = [
     "AuditReportPage",
     "AuditReportPersistenceResult",
     "AuditReportQuery",
+    "AuditRevalidationRecord",
+    "AuditRevalidationRequest",
+    "AuditRevalidationResult",
+    "AuditRevalidationStatus",
     "AuditTraceEvent",
     "build_audit_presentation",
     "evaluate_audit_freshness",
     "get_audit_freshness",
     "get_audit_presentation",
     "get_audit_report",
+    "get_audit_report_by_id",
+    "get_audit_revalidation",
     "list_audit_reports",
     "persist_audit_report",
+    "persist_audit_revalidation",
+    "revalidate_audit_report",
 ]

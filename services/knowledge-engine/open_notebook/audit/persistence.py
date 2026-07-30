@@ -116,6 +116,20 @@ async def get_audit_report(answer_id: str) -> AuditReport:
     return await _refresh_audit_report(rows[0])
 
 
+async def get_audit_report_by_id(audit_id: str) -> AuditReport:
+    """Load one persisted audit report by its stable report identifier."""
+
+    rows = await repo_query(
+        "SELECT * FROM audit_report WHERE audit_id = $audit_id LIMIT 1",
+        {"audit_id": audit_id},
+    )
+    if not rows:
+        raise NotFoundError(
+            f"No audit report found for audit {audit_id}"
+        )
+    return await _refresh_audit_report(rows[0])
+
+
 async def list_audit_reports(query: AuditReportQuery) -> AuditReportPage:
     """Return a bounded, deterministic page of live audit reports."""
 
