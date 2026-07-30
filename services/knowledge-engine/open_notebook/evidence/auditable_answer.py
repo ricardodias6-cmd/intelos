@@ -18,7 +18,6 @@ from open_notebook.audit import (
     AuditTraceEvent,
     persist_audit_report,
 )
-from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
@@ -26,6 +25,7 @@ from open_notebook.evidence.auditable_models import (
     AuditableAnswer,
     AuditableAnswerStatus,
 )
+from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence.evidence_aware_generation import (
     EvidenceAwareGenerationPolicy,
     RejectedCandidateClaim,
