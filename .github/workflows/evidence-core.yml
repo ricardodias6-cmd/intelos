@@ -10,6 +10,7 @@ on:
       - agent/phase-6
       - agent/phase-7
       - agent/phase-8
+      - agent/phase-8-maintenance
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -27,6 +28,7 @@ on:
       - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -205,7 +207,7 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migrations 24 through 28
+      - name: Test migrations 24 through 29
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
 
       - name: Test hybrid evidence retrieval end to end
