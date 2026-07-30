@@ -101,19 +101,18 @@ def test_presentation_preserves_auditable_payload() -> None:
 
 def test_presentation_rejects_inconsistent_counts() -> None:
     with pytest.raises(ValidationError, match="counts"):
-        AuditPresentation(
-            **build_audit_presentation(_report()).model_dump(
-                mode="python"
-            ),
-            counts={
-                "claims": 0,
-                "citations": 0,
-                "selected_evidence": 0,
-                "rejected_evidence": 0,
-                "conflicts": 0,
-                "trace_events": 0,
-            },
+        payload = build_audit_presentation(_report()).model_dump(
+            mode="python"
         )
+        payload["counts"] = {
+            "claims": 0,
+            "citations": 0,
+            "selected_evidence": 0,
+            "rejected_evidence": 0,
+            "conflicts": 0,
+            "trace_events": 0,
+        }
+        AuditPresentation(**payload)
 
 
 @pytest.mark.asyncio
