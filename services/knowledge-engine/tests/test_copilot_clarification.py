@@ -9,8 +9,8 @@ from open_notebook.copilot.models import (
     CopilotChatResponse,
     CopilotResponseMode,
 )
-from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence import auditable_answer
+from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
     build_auditable_answer,
