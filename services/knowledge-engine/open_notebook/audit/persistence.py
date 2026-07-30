@@ -11,6 +11,11 @@ from open_notebook.audit.models import (
     AuditReport,
     AuditReportPersistenceResult,
 )
+from open_notebook.audit.presentation import (
+    AuditPresentation,
+    AuditPresentationMode,
+    build_audit_presentation,
+)
 from open_notebook.audit.query import AuditReportPage, AuditReportQuery
 from open_notebook.database.repository import (
     ensure_record_id,
@@ -166,3 +171,13 @@ async def get_audit_freshness(answer_id: str) -> AuditFreshness:
     """Return the current freshness assessment for one answer."""
 
     return (await get_audit_report(answer_id)).freshness
+
+
+async def get_audit_presentation(
+    answer_id: str,
+    mode: AuditPresentationMode = AuditPresentationMode.SUMMARY,
+) -> AuditPresentation:
+    """Return a safe presentation projection for one answer audit."""
+
+    report = await get_audit_report(answer_id)
+    return build_audit_presentation(report, mode)

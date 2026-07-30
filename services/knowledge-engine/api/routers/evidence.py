@@ -3,10 +3,13 @@ from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.audit import (
     AuditFreshness,
+    AuditPresentation,
+    AuditPresentationMode,
     AuditReport,
     AuditReportPage,
     AuditReportQuery,
     get_audit_freshness,
+    get_audit_presentation,
     get_audit_report,
     list_audit_reports,
 )
@@ -155,6 +158,20 @@ async def list_audit_report_history(
     query: AuditReportQuery = Depends(),
 ) -> AuditReportPage:
     return await list_audit_reports(query)
+
+
+@router.get(
+    "/evidence/answer/{answer_id}/audit/presentation",
+    response_model=AuditPresentation,
+)
+async def get_answer_audit_presentation(
+    answer_id: str,
+    mode: AuditPresentationMode = AuditPresentationMode.SUMMARY,
+) -> AuditPresentation:
+    try:
+        return await get_audit_presentation(answer_id, mode)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get(
