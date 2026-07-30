@@ -51,8 +51,10 @@ on:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/copilot.py
       - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/copilot/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
       - services/knowledge-engine/open_notebook/knowledge_graph/**
@@ -75,6 +77,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_copilot_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
 
