@@ -96,11 +96,53 @@ class AuditTraceEvent(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class AuditFreshnessStatus(StrEnum):
+    """Current lifecycle assessment of evidence used by an answer."""
+
+    CURRENT = "current"
+    POSSIBLY_OUTDATED = "possibly_outdated"
+    OUTDATED = "outdated"
+    UNKNOWN = "unknown"
+
+
+class AuditFreshness(BaseModel):
+    """Live, fail-safe freshness assessment for one audit report."""
+
+    status: AuditFreshnessStatus = AuditFreshnessStatus.CURRENT
+    requires_revalidation: bool = False
+    reason: str | None = Field(default=None, max_length=2000)
+    change_ids: list[str] = Field(default_factory=list, max_length=100)
+    affected_evidence_ids: list[str] = Field(default_factory=list, max_length=50)
+    checked_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    @model_validator(mode="after")
+    def validate_revalidation_flag(self) -> "AuditFreshness":
+        expected = self.status != AuditFreshnessStatus.CURRENT
+        if self.requires_revalidation != expected:
+            raise ValueError(
+                "non-current audit freshness statuses require revalidation"
+            )
+        return self
+
+
 class AuditReport(BaseModel):
     """Complete explainability record associated with one answer."""
 
     audit_id: str = Field(min_length=3, max_length=128)
     answer_id: str = Field(min_length=3, max_length=128)
+    conversation_id: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=128,
+    )
+    turn_id: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=128,
+    )
+    response_mode: str = Field(default="default", min_length=1, max_length=20)
     question: str = Field(min_length=1, max_length=10000)
     question_hash: str = Field(min_length=1, max_length=200)
     answer: str = Field(min_length=1, max_length=50000)
@@ -121,7 +163,25 @@ class AuditReport(BaseModel):
     generated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+    freshness: AuditFreshness = Field(default_factory=AuditFreshness)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("conversation_id", "turn_id")
+    @classmethod
+    def normalize_optional_ids(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("conversation and turn identifiers cannot be blank")
+        return normalized
+
+    @field_validator("response_mode")
+    @classmethod
+    def validate_response_mode(cls, value: str) -> str:
+        if value not in {"default", "concise", "detailed", "audit"}:
+            raise ValueError("response_mode must be default, concise, detailed, or audit")
+        return value
 
     @field_validator("audit_id", "answer_id")
     @classmethod
