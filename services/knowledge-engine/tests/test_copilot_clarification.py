@@ -10,7 +10,6 @@ from open_notebook.copilot.models import (
     CopilotResponseMode,
 )
 from open_notebook.evidence import auditable_answer
-from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
     build_auditable_answer,
@@ -22,6 +21,7 @@ from open_notebook.evidence.auditable_models import (
     AuditableAnswer,
     AuditableAnswerStatus,
 )
+from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence.models import ClaimKind, SupportStatus
 from open_notebook.evidence.retrieval import EvidenceSearchResponse
 
