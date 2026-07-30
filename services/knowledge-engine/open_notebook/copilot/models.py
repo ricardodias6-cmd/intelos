@@ -13,7 +13,6 @@ from open_notebook.evidence.auditable_models import (
     AnswerCitation,
     AnswerClaim,
     AuditableAnswer,
-    AuditableAnswerStatus,
 )
 from open_notebook.evidence.models import SupportStatus
 
