@@ -1,0 +1,6 @@
+-- Rollback Migration 30: remove bounded Copilot conversation context
+
+REMOVE INDEX IF EXISTS idx_copilot_turn_answer ON TABLE copilot_conversation_turn;
+REMOVE INDEX IF EXISTS idx_copilot_turn_conversation ON TABLE copilot_conversation_turn;
+REMOVE INDEX IF EXISTS idx_copilot_turn_id ON TABLE copilot_conversation_turn;
+REMOVE TABLE IF EXISTS copilot_conversation_turn;
