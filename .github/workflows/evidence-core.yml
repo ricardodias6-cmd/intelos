@@ -14,6 +14,7 @@ on:
       - agent/phase-9
       - agent/phase-9-clarification
       - agent/phase-9-audit-freshness
+      - agent/phase-10-1-audit-query-contract
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -54,6 +55,7 @@ on:
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
       - services/knowledge-engine/tests/test_audit_freshness.py
+      - services/knowledge-engine/tests/test_audit_query.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -154,6 +156,7 @@ jobs:
           tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
           tests/test_audit_freshness.py
+          tests/test_audit_query.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -172,6 +175,7 @@ jobs:
           tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
           tests/test_audit_report.py
+          tests/test_audit_query.py
 
   migration-integration:
     needs: test
