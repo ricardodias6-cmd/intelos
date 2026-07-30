@@ -49,6 +49,8 @@ A superfície de auditoria deve permitir distinguir:
 
 A apresentação pode variar em profundidade, mas não pode remover ou alterar a proveniência factual do relatório. A projeção inicial é exposta em GET /api/evidence/answer/{answer_id}/audit/presentation e aceita os modos summary, detailed e audit. Todos os modos preservam o payload auditável; o modo apenas define a ênfase de apresentação do cliente. Metadados brutos do relatório não são expostos nesta projeção.
 
+A revalidação controlada é iniciada explicitamente por POST /api/evidence/answer/{answer_id}/audit/revalidate. O pedido referencia o source_audit_id, exige reason e uma idempotency_key estável, e pode limitar-se a Evidence IDs e change IDs relevantes. O resultado referencia sempre o relatório original e um novo answer_id/audit_id; a mesma chave repetida devolve o mesmo resultado, enquanto uma reutilização com parâmetros diferentes é rejeitada.
+
 ### Revalidação
 
 A revalidação será uma operação explícita, autenticada no âmbito suportado e idempotente. O pedido deverá:
