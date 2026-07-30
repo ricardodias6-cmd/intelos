@@ -47,7 +47,7 @@ A superfície de auditoria deve permitir distinguir:
 - eventos de trace;
 - freshness.status, requires_revalidation, change_ids e affected_evidence_ids.
 
-A apresentação pode variar em profundidade, mas não pode remover ou alterar a proveniência factual do relatório.
+A apresentação pode variar em profundidade, mas não pode remover ou alterar a proveniência factual do relatório. A projeção inicial é exposta em GET /api/evidence/answer/{answer_id}/audit/presentation e aceita os modos summary, detailed e audit. Todos os modos preservam o payload auditável; o modo apenas define a ênfase de apresentação do cliente. Metadados brutos do relatório não são expostos nesta projeção.
 
 ### Revalidação
 
