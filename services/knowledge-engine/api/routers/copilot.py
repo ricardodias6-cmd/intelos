@@ -38,6 +38,8 @@ async def chat_with_copilot(
         answer = await build_auditable_answer(
             request.to_auditable_answer_request(
                 conversation_context=context,
+                conversation_id=conversation_id,
+                turn_id=turn_id,
             )
         )
     except InvalidInputError as exc:
