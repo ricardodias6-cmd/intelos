@@ -90,7 +90,7 @@ async def test_list_audit_reports_is_bounded_and_deterministic(
     assert page.has_more is True
     assert page.next_offset == 1
     assert page.scan_truncated is False
-    assert "ORDER BY generated_at DESC, answer_id DESC" in queries[0][0]
+    assert "ORDER BY generated_at DESC, audit_id DESC" in queries[0][0]
     assert "LIMIT $scan_limit" in queries[0][0]
     assert queries[0][1]["conversation_id"] == "CONV_QUERY_001"
 
