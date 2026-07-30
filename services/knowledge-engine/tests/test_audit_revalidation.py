@@ -13,9 +13,9 @@ from api.routers import evidence
 from open_notebook.audit import (
     AuditEvidenceDecision,
     AuditEvidenceDecisionType,
+    AuditReport,
     AuditRevalidationRequest,
     AuditRevalidationResult,
-    AuditReport,
     AuditRevalidationStatus,
     revalidate_audit_report,
 )
