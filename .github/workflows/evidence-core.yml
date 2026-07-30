@@ -92,6 +92,8 @@ on:
       - services/knowledge-engine/tests/test_copilot_persistence.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
+      - services/knowledge-engine/tests/test_audit_freshness.py
+      - services/knowledge-engine/tests/test_audit_query.py
 
 concurrency:
   group: evidence-core-${{ github.ref }}
