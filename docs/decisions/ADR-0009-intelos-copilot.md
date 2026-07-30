@@ -142,7 +142,7 @@ Os campos `claims`, `citations`, `overall_confidence`, `requires_human_review` e
 Estados mínimos:
 
 - `answered`: existe pelo menos uma resposta factual apresentável;
-- `insufficient_evidence`: não existe evidência suficiente para responder factual­mente;
+- `insufficient_evidence`: não existe evidência suficiente para responder factualmente;
 - `conflict`: existem fontes ou versões em conflito e a resposta exige revisão;
 - `clarification_required`: a pergunta é ambígua e deve ser esclarecida;
 - `technical_error`: ocorreu uma falha operacional; não deve ser convertida em conclusão factual.
