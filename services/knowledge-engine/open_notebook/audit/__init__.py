@@ -2,6 +2,8 @@
 
 from open_notebook.audit.models import (
     AuditConflict,
+    AuditFreshness,
+    AuditFreshnessStatus,
     AuditConflictSeverity,
     AuditEvidenceDecision,
     AuditEvidenceDecisionType,
@@ -9,6 +11,7 @@ from open_notebook.audit.models import (
     AuditReportPersistenceResult,
     AuditTraceEvent,
 )
+from open_notebook.audit.freshness import evaluate_audit_freshness
 from open_notebook.audit.persistence import (
     get_audit_report,
     persist_audit_report,
@@ -16,12 +19,15 @@ from open_notebook.audit.persistence import (
 
 __all__ = [
     "AuditConflict",
+    "AuditFreshness",
+    "AuditFreshnessStatus",
     "AuditConflictSeverity",
     "AuditEvidenceDecision",
     "AuditEvidenceDecisionType",
     "AuditReport",
     "AuditReportPersistenceResult",
     "AuditTraceEvent",
+    "evaluate_audit_freshness",
     "get_audit_report",
     "persist_audit_report",
 ]
