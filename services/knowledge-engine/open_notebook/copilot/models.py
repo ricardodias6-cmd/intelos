@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from open_notebook.audit.models import AuditConflict
 from open_notebook.evidence.auditable_answer import AuditableAnswerRequest
+from open_notebook.copilot.presentation import render_copilot_answer
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
@@ -50,6 +51,12 @@ class CopilotNextAction(BaseModel):
 
     type: CopilotNextActionType
     question: str | None = Field(default=None, max_length=10000)
+
+    @model_validator(mode="after")
+    def validate_action(self) -> "CopilotNextAction":
+        if self.type == CopilotNextActionType.CLARIFICATION and not self.question:
+            raise ValueError("clarification actions require a question")
+        return self
 
 
 class CopilotChatRequest(BaseModel):
@@ -211,13 +218,22 @@ class CopilotChatResponse(BaseModel):
             )
         ]
 
+        next_actions = []
+        if answer.status.value == CopilotTurnStatus.CLARIFICATION_REQUIRED.value:
+            next_actions = [
+                CopilotNextAction(
+                    type=CopilotNextActionType.CLARIFICATION,
+                    question=answer.clarification_question,
+                )
+            ]
+
         return cls(
             conversation_id=conversation_id,
             turn_id=turn_id,
             answer_id=answer.answer_id,
             audit_report_id=answer.audit_report_id,
             response_mode=request.response_mode,
-            answer=answer.answer,
+            answer=render_copilot_answer(answer, request.response_mode.value),
             claims=answer.claims,
             citations=answer.citations,
             overall_confidence=answer.overall_confidence,
@@ -225,6 +241,7 @@ class CopilotChatResponse(BaseModel):
             gaps=gaps,
             requires_human_review=answer.requires_human_review,
             status=CopilotTurnStatus(answer.status.value),
+            next_actions=next_actions,
             audit=(
                 answer.audit
                 if request.response_mode == CopilotResponseMode.AUDIT
