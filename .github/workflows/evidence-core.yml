@@ -16,6 +16,7 @@ on:
       - agent/phase-9-audit-freshness
       - agent/phase-10-1-audit-query-contract
       - agent/phase-10-2-audit-presentation
+      - agent/phase-10-3-controlled-revalidation
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -58,6 +59,7 @@ on:
       - services/knowledge-engine/tests/test_audit_freshness.py
       - services/knowledge-engine/tests/test_audit_query.py
       - services/knowledge-engine/tests/test_audit_presentation.py
+      - services/knowledge-engine/tests/test_audit_revalidation.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
