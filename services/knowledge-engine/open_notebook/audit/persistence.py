@@ -11,6 +11,7 @@ from open_notebook.audit.models import (
     AuditReport,
     AuditReportPersistenceResult,
 )
+from open_notebook.audit.query import AuditReportPage, AuditReportQuery
 from open_notebook.database.repository import (
     ensure_record_id,
     repo_query,
@@ -85,6 +86,17 @@ async def persist_audit_report(
     )
 
 
+_MAX_AUDIT_QUERY_SCAN = 1000
+
+
+async def _refresh_audit_report(row: dict[str, Any]) -> AuditReport:
+    """Validate one stored report and replace its freshness with a live result."""
+
+    report = AuditReport.model_validate(row)
+    freshness = await evaluate_audit_freshness(report.selected_evidence_ids)
+    return report.model_copy(update={"freshness": freshness})
+
+
 async def get_audit_report(answer_id: str) -> AuditReport:
     """Load the persisted audit report associated with one answer."""
 
@@ -96,9 +108,58 @@ async def get_audit_report(answer_id: str) -> AuditReport:
         raise NotFoundError(
             f"No audit report found for answer {answer_id}"
         )
-    report = AuditReport.model_validate(rows[0])
-    freshness = await evaluate_audit_freshness(report.selected_evidence_ids)
-    return report.model_copy(update={"freshness": freshness})
+    return await _refresh_audit_report(rows[0])
+
+
+async def list_audit_reports(query: AuditReportQuery) -> AuditReportPage:
+    """Return a bounded, deterministic page of live audit reports."""
+
+    clauses: list[str] = []
+    variables: dict[str, Any] = {"scan_limit": _MAX_AUDIT_QUERY_SCAN}
+
+    if query.answer_id is not None:
+        clauses.append("answer_id = $answer_id")
+        variables["answer_id"] = query.answer_id
+    if query.conversation_id is not None:
+        clauses.append("conversation_id = $conversation_id")
+        variables["conversation_id"] = query.conversation_id
+    if query.turn_id is not None:
+        clauses.append("turn_id = $turn_id")
+        variables["turn_id"] = query.turn_id
+    if query.generated_from is not None:
+        clauses.append("generated_at >= $generated_from")
+        variables["generated_from"] = query.generated_from
+    if query.generated_to is not None:
+        clauses.append("generated_at <= $generated_to")
+        variables["generated_to"] = query.generated_to
+
+    statement = "SELECT * FROM audit_report"
+    if clauses:
+        statement += " WHERE " + " AND ".join(clauses)
+    statement += " ORDER BY generated_at DESC, audit_id DESC LIMIT $scan_limit"
+
+    rows = await repo_query(statement, variables)
+    reports: list[AuditReport] = []
+    for row in rows:
+        report = await _refresh_audit_report(row)
+        if (
+            query.freshness_status is None
+            or report.freshness.status == query.freshness_status
+        ):
+            reports.append(report)
+
+    page_end = query.offset + query.limit
+    scan_truncated = len(rows) >= _MAX_AUDIT_QUERY_SCAN
+    has_more = len(reports) > page_end or scan_truncated
+    next_offset = page_end if has_more and not scan_truncated else None
+    return AuditReportPage(
+        items=reports[query.offset:page_end],
+        limit=query.limit,
+        offset=query.offset,
+        has_more=has_more,
+        next_offset=next_offset,
+        scan_truncated=scan_truncated,
+    )
 
 
 async def get_audit_freshness(answer_id: str) -> AuditFreshness:
