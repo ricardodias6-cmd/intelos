@@ -88,6 +88,13 @@ async def evaluate_audit_freshness(
             if row.get("document_version") is None
         }
     )
+    missing_hash_evidence = sorted(
+        {
+            evidence_id
+            for evidence_id, row in evidence_by_id.items()
+            if not row.get("document_version_hash")
+        }
+    )
 
     change_rows = await repo_query(
         (
@@ -109,6 +116,7 @@ async def evaluate_audit_freshness(
 
     affected_evidence_ids: set[str] = set(missing_evidence)
     affected_evidence_ids.update(missing_version_evidence)
+    affected_evidence_ids.update(missing_hash_evidence)
     affected_evidence_ids.update(
         evidence_id
         for evidence_id, row in evidence_by_id.items()
@@ -118,43 +126,75 @@ async def evaluate_audit_freshness(
     change_ids: set[str] = set()
     has_outdated = False
     has_possible_outdated = False
+    has_unknown = bool(
+        missing_evidence
+        or missing_versions
+        or missing_version_evidence
+        or missing_hash_evidence
+    )
 
     for evidence_id, evidence_row in evidence_by_id.items():
         version_id = _row_id(evidence_row, "document_version")
         version = versions_by_id.get(version_id or "")
-        status = str(version.get("status", "unknown")) if version else "unknown"
-        if status == "revoked":
+        status = str(version.get("status")) if version else "unknown"
+        if version is None:
+            has_unknown = True
+            affected_evidence_ids.add(evidence_id)
+        elif status == "revoked":
             has_outdated = True
             affected_evidence_ids.add(evidence_id)
         elif status == "superseded":
             has_possible_outdated = True
             affected_evidence_ids.add(evidence_id)
-        elif version is None:
+        elif status == "current":
+            evidence_hash = str(evidence_row.get("document_version_hash") or "")
+            version_hash = str(version.get("version_hash") or "")
+            if not evidence_hash or not version_hash or evidence_hash != version_hash:
+                has_unknown = True
+                affected_evidence_ids.add(evidence_id)
+        else:
+            has_unknown = True
             affected_evidence_ids.add(evidence_id)
 
     for change in change_rows:
         change_type = str(change.get("change_type", ""))
         if change_type not in {"modified", "revoked"}:
             continue
+
+        previous_version_id = _row_id(change, "previous_version")
+        current_version_id = _row_id(change, "current_version")
+        previous_version_hash = _row_id(change, "previous_version_hash")
+        current_version_hash = _row_id(change, "current_version_hash")
+        matched_evidence_ids: set[str] = set()
+        for evidence_id, evidence_row in evidence_by_id.items():
+            evidence_version_id = _row_id(evidence_row, "document_version")
+            evidence_hash = _row_id(evidence_row, "document_version_hash")
+            if evidence_version_id and (previous_version_id or current_version_id):
+                if change_type == "revoked":
+                    matches = evidence_version_id in {
+                        previous_version_id,
+                        current_version_id,
+                    }
+                else:
+                    matches = evidence_version_id == previous_version_id
+            elif change_type == "revoked":
+                matches = evidence_hash in {
+                    previous_version_hash,
+                    current_version_hash,
+                }
+            else:
+                matches = evidence_hash == previous_version_hash
+
+            if matches:
+                matched_evidence_ids.add(evidence_id)
+
+        if not matched_evidence_ids:
+            continue
+
         change_id = _row_id(change, "change_id") or _row_id(change, "id")
         if change_id:
             change_ids.add(change_id)
-        matched_hashes = {
-            str(change[field])
-            for field in ("previous_version_hash", "current_version_hash")
-            if change.get(field) is not None
-        }
-        matched_versions = {
-            str(change[field])
-            for field in ("previous_version", "current_version")
-            if change.get(field) is not None
-        }
-        for evidence_id, evidence_row in evidence_by_id.items():
-            if (
-                str(evidence_row.get("document_version_hash", "")) in matched_hashes
-                or str(evidence_row.get("document_version", "")) in matched_versions
-            ):
-                affected_evidence_ids.add(evidence_id)
+        affected_evidence_ids.update(matched_evidence_ids)
         if change_type == "revoked":
             has_outdated = True
         else:
@@ -169,20 +209,21 @@ async def evaluate_audit_freshness(
             affected_evidence_ids=sorted(affected_evidence_ids),
             checked_at=checked_at,
         )
+    if has_unknown:
+        return AuditFreshness(
+            status=AuditFreshnessStatus.UNKNOWN,
+            requires_revalidation=True,
+            reason="A referenced evidence or document version has an unknown state.",
+            change_ids=sorted(change_ids),
+            affected_evidence_ids=sorted(affected_evidence_ids),
+            checked_at=checked_at,
+        )
     if has_possible_outdated:
         return AuditFreshness(
             status=AuditFreshnessStatus.POSSIBLY_OUTDATED,
             requires_revalidation=True,
             reason="A referenced document version was modified or superseded.",
             change_ids=sorted(change_ids),
-            affected_evidence_ids=sorted(affected_evidence_ids),
-            checked_at=checked_at,
-        )
-    if missing_evidence or missing_versions or missing_version_evidence:
-        return AuditFreshness(
-            status=AuditFreshnessStatus.UNKNOWN,
-            requires_revalidation=True,
-            reason="A referenced evidence block or document version is unavailable.",
             affected_evidence_ids=sorted(affected_evidence_ids),
             checked_at=checked_at,
         )
