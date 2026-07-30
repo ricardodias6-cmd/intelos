@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
-from open_notebook.audit.models import AuditFreshnessStatus
+from open_notebook.audit.models import AuditFreshnessStatus, AuditReport
 
 
 class AuditReportQuery(BaseModel):
@@ -35,7 +35,7 @@ class AuditReportQuery(BaseModel):
 class AuditReportPage(BaseModel):
     """A bounded page of reports with explicit pagination state."""
 
-    items: list = Field(default_factory=list, max_length=50)
+    items: list[AuditReport] = Field(default_factory=list, max_length=50)
     limit: int = Field(ge=1, le=50)
     offset: int = Field(ge=0, le=950)
     has_more: bool = False
