@@ -18,6 +18,7 @@ from open_notebook.audit import (
     AuditTraceEvent,
     persist_audit_report,
 )
+from open_notebook.copilot.clarification import requires_clarification
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
