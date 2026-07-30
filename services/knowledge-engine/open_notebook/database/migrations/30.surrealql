@@ -1,0 +1,21 @@
+-- Migration 30: bounded Copilot conversation context
+
+DEFINE TABLE IF NOT EXISTS copilot_conversation_turn SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS conversation_id ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS turn_id ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS question ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS answer ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS claim_summaries ON TABLE copilot_conversation_turn TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS response_mode ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS status ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS answer_id ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS audit_report_id ON TABLE copilot_conversation_turn TYPE string;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE copilot_conversation_turn TYPE datetime;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE copilot_conversation_turn TYPE datetime;
+
+DEFINE INDEX IF NOT EXISTS idx_copilot_turn_id
+ON TABLE copilot_conversation_turn FIELDS turn_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_copilot_turn_conversation
+ON TABLE copilot_conversation_turn FIELDS conversation_id, created_at;
+DEFINE INDEX IF NOT EXISTS idx_copilot_turn_answer
+ON TABLE copilot_conversation_turn FIELDS answer_id UNIQUE;
