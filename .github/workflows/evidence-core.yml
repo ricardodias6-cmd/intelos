@@ -12,6 +12,7 @@ on:
       - agent/phase-8
       - agent/phase-8-maintenance
       - agent/phase-9
+      - agent/phase-9-clarification
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -33,6 +34,8 @@ on:
       - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -45,6 +48,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_copilot_api.py
+      - services/knowledge-engine/tests/test_copilot_clarification.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
   pull_request:
@@ -142,6 +146,7 @@ jobs:
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
           tests/test_copilot_api.py
+          tests/test_copilot_clarification.py
           tests/test_copilot_persistence.py
           tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py

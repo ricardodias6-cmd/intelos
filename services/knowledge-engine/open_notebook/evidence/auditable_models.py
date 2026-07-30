@@ -14,6 +14,7 @@ class AuditableAnswerStatus(StrEnum):
     ANSWERED = "answered"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
     CONFLICT = "conflict"
+    CLARIFICATION_REQUIRED = "clarification_required"
 
 
 class AnswerCitation(BaseModel):
@@ -125,11 +126,17 @@ class AuditableAnswer(BaseModel):
     citations: list[AnswerCitation] = Field(default_factory=list)
     overall_confidence: float = Field(ge=0, le=1)
     requires_human_review: bool = False
+    clarification_question: str | None = Field(default=None, max_length=10000)
     status: AuditableAnswerStatus
     audit: AnswerAuditMetadata
 
     @model_validator(mode="after")
     def validate_evidence_links(self) -> "AuditableAnswer":
+        if self.status == AuditableAnswerStatus.CLARIFICATION_REQUIRED and not self.clarification_question:
+            raise ValueError("clarification responses require a clarification question")
+        if self.status != AuditableAnswerStatus.CLARIFICATION_REQUIRED and self.clarification_question is not None:
+            raise ValueError("clarification question is only valid for clarification responses")
+
         selected_ids = set(self.audit.selected_evidence_ids)
         citation_ids = {citation.evidence_id for citation in self.citations}
 
