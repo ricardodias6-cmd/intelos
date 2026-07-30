@@ -11,12 +11,15 @@ on:
       - agent/phase-7
       - agent/phase-8
       - agent/phase-8-maintenance
+      - agent/phase-9
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/copilot.py
       - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/copilot/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
       - services/knowledge-engine/open_notebook/knowledge_graph/**
@@ -29,6 +32,7 @@ on:
       - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -40,6 +44,7 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_copilot_api.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
   pull_request:
@@ -47,8 +52,10 @@ on:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
       - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/copilot.py
       - services/knowledge-engine/api/routers/knowledge_graph.py
       - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/copilot/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
       - services/knowledge-engine/open_notebook/knowledge_graph/**
@@ -71,6 +78,9 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer_models.py
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_copilot_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph_expansion.py
+      - services/knowledge-engine/tests/test_copilot_persistence.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
 
@@ -111,6 +121,7 @@ jobs:
           uv run ruff check
           api/main.py
           api/routers/evidence.py
+          api/routers/copilot.py
           api/routers/knowledge_graph.py
           open_notebook/evidence
           open_notebook/domain/evidence.py
@@ -130,6 +141,9 @@ jobs:
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
+          tests/test_copilot_api.py
+          tests/test_copilot_persistence.py
+          tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
 
       - name: Run Evidence Core unit tests
@@ -144,6 +158,9 @@ jobs:
           tests/test_auditable_answer_models.py
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
+          tests/test_copilot_api.py
+          tests/test_copilot_persistence.py
+          tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
           tests/test_audit_report.py
 
@@ -207,7 +224,7 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migrations 24 through 29
+      - name: Test migrations 24 through 30
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
 
       - name: Test hybrid evidence retrieval end to end
