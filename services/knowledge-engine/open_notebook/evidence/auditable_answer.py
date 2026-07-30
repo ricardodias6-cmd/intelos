@@ -40,7 +40,6 @@ from open_notebook.evidence.semantic_validation import (
     SemanticValidationResult,
     validate_claim_semantics,
 )
-from open_notebook.copilot.clarification import requires_clarification
 from open_notebook.exceptions import InvalidInputError
 from open_notebook.knowledge_graph.expansion import (
     KnowledgeGraphExpansion,
