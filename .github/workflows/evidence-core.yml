@@ -32,6 +32,7 @@ on:
       - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
       - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
       - services/knowledge-engine/tests/test_evidence_core.py
       - services/knowledge-engine/tests/test_docling_evidence_adapter.py
       - services/knowledge-engine/tests/test_evidence_migration_integration.py
@@ -78,6 +79,8 @@ on:
       - services/knowledge-engine/tests/test_auditable_answer.py
       - services/knowledge-engine/tests/test_evidence_answer_api.py
       - services/knowledge-engine/tests/test_copilot_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph_expansion.py
+      - services/knowledge-engine/tests/test_copilot_persistence.py
       - services/knowledge-engine/tests/test_knowledge_graph.py
       - services/knowledge-engine/tests/test_audit_report.py
 
@@ -139,6 +142,8 @@ jobs:
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
           tests/test_copilot_api.py
+          tests/test_copilot_persistence.py
+          tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
 
       - name: Run Evidence Core unit tests
@@ -154,6 +159,8 @@ jobs:
           tests/test_auditable_answer.py
           tests/test_evidence_answer_api.py
           tests/test_copilot_api.py
+          tests/test_copilot_persistence.py
+          tests/test_knowledge_graph_expansion.py
           tests/test_knowledge_graph.py
           tests/test_audit_report.py
 
@@ -217,7 +224,7 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migrations 24 through 29
+      - name: Test migrations 24 through 30
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
 
       - name: Test hybrid evidence retrieval end to end
