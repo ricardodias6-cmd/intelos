@@ -1,0 +1,9 @@
+-- Rollback Migration 31: remove complete Copilot audit linkage
+
+REMOVE INDEX IF EXISTS idx_audit_report_conversation_turn
+ON TABLE audit_report;
+
+REMOVE FIELD IF EXISTS freshness ON TABLE audit_report;
+REMOVE FIELD IF EXISTS response_mode ON TABLE audit_report;
+REMOVE FIELD IF EXISTS turn_id ON TABLE audit_report;
+REMOVE FIELD IF EXISTS conversation_id ON TABLE audit_report;

@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from open_notebook.audit import AuditReport, get_audit_report
+from open_notebook.audit import (
+    AuditFreshness,
+    AuditReport,
+    get_audit_freshness,
+    get_audit_report,
+)
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
     build_auditable_answer,
@@ -136,5 +141,15 @@ async def answer_with_evidence(
 async def get_answer_audit_report(answer_id: str) -> AuditReport:
     try:
         return await get_audit_report(answer_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+@router.get(
+    "/evidence/answer/{answer_id}/freshness",
+    response_model=AuditFreshness,
+)
+async def get_answer_freshness(answer_id: str) -> AuditFreshness:
+    try:
+        return await get_audit_freshness(answer_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

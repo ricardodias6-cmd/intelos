@@ -51,6 +51,9 @@ class AuditableAnswerRequest(BaseModel):
     """Validated input for the phase 4 orchestration pipeline."""
 
     question: str = Field(min_length=1, max_length=10000)
+    conversation_id: str | None = Field(default=None, min_length=3, max_length=128)
+    turn_id: str | None = Field(default=None, min_length=3, max_length=128)
+    response_mode: str = Field(default="default", min_length=1, max_length=20)
     max_evidence: int = Field(default=8, ge=1, le=20)
     candidate_limit: int = Field(default=250, ge=1, le=2000)
     minimum_score: float = Field(default=0.05, ge=0, le=1)
@@ -61,6 +64,14 @@ class AuditableAnswerRequest(BaseModel):
     regeneration_attempts: int = Field(default=1, ge=0, le=2)
     conversation_context: list[str] = Field(default_factory=list, max_length=6)
     include_knowledge_graph: bool = False
+
+    @model_validator(mode="after")
+    def validate_response_mode(self) -> "AuditableAnswerRequest":
+        if self.response_mode not in {"default", "concise", "detailed", "audit"}:
+            raise ValueError(
+                "response_mode must be default, concise, detailed, or audit"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_limits(self) -> "AuditableAnswerRequest":
@@ -170,6 +181,9 @@ async def _persist_answer_audit(
     report = AuditReport(
         audit_id=audit_id,
         answer_id=answer_id,
+        conversation_id=request.conversation_id,
+        turn_id=request.turn_id,
+        response_mode=request.response_mode,
         question=request.question,
         question_hash=answer.audit.question_hash,
         answer=answer.answer,
@@ -186,6 +200,9 @@ async def _persist_answer_audit(
         embedding_model=answer.audit.embedding_model,
         generated_at=answer.audit.generated_at,
         metadata={
+            "conversation_id": request.conversation_id,
+            "turn_id": request.turn_id,
+            "response_mode": request.response_mode,
             "model_id": model_id,
             "max_evidence": request.max_evidence,
             "candidate_limit": request.candidate_limit,

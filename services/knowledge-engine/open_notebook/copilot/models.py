@@ -94,11 +94,16 @@ class CopilotChatRequest(BaseModel):
         self,
         *,
         conversation_context: Sequence[str] = (),
+        conversation_id: str | None = None,
+        turn_id: str | None = None,
     ) -> AuditableAnswerRequest:
         """Build the phase 4 request without exposing Copilot-only fields."""
 
         return AuditableAnswerRequest(
             question=self.question,
+            conversation_id=conversation_id,
+            turn_id=turn_id,
+            response_mode=self.response_mode.value,
             max_evidence=self.max_evidence,
             source_id=self.source_id,
             version_hash=self.version_hash,

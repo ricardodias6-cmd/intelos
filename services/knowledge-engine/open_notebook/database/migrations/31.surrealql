@@ -1,0 +1,9 @@
+-- Migration 31: complete Copilot audit linkage and live freshness snapshot
+
+DEFINE FIELD IF NOT EXISTS conversation_id ON TABLE audit_report TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS turn_id ON TABLE audit_report TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS response_mode ON TABLE audit_report TYPE string DEFAULT "default";
+DEFINE FIELD IF NOT EXISTS freshness ON audit_report FLEXIBLE TYPE object;
+
+DEFINE INDEX IF NOT EXISTS idx_audit_report_conversation_turn
+ON TABLE audit_report FIELDS conversation_id, turn_id;

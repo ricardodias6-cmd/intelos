@@ -99,6 +99,8 @@ def test_audit_report_preserves_explainability_contract() -> None:
     assert report.audited_evidence_ids == ["EV_ONE", "EV_REJECTED"]
     assert report.conflicts[0].claim_id == "CLM_PHASE7_001"
     assert report.trace[1].details["model"] == "test-model"
+    assert report.response_mode == "default"
+    assert report.freshness.status.value == "current"
 
 
 def test_audit_report_rejects_unexplained_evidence() -> None:
