@@ -1,0 +1,40 @@
+-- Migration 29: document revocation and idempotent reprocessing queue
+
+DEFINE FIELD IF NOT EXISTS revocation_reason
+ON TABLE document_version TYPE option<string>;
+
+DEFINE TABLE IF NOT EXISTS document_reprocessing_request SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS request_id ON TABLE document_reprocessing_request TYPE string;
+DEFINE FIELD IF NOT EXISTS source ON TABLE document_reprocessing_request TYPE record<source>;
+DEFINE FIELD IF NOT EXISTS document_version ON TABLE document_reprocessing_request TYPE record<document_version>;
+DEFINE FIELD IF NOT EXISTS reason ON TABLE document_reprocessing_request TYPE string;
+DEFINE FIELD IF NOT EXISTS status ON TABLE document_reprocessing_request TYPE string;
+DEFINE FIELD IF NOT EXISTS idempotency_key ON TABLE document_reprocessing_request TYPE string;
+DEFINE FIELD IF NOT EXISTS priority ON TABLE document_reprocessing_request TYPE int;
+DEFINE FIELD IF NOT EXISTS attempt_count ON TABLE document_reprocessing_request TYPE int;
+DEFINE FIELD IF NOT EXISTS last_error ON TABLE document_reprocessing_request TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS metadata ON document_reprocessing_request FLEXIBLE TYPE option<object>;
+DEFINE FIELD IF NOT EXISTS requested_at ON TABLE document_reprocessing_request TYPE datetime;
+DEFINE FIELD IF NOT EXISTS started_at ON TABLE document_reprocessing_request TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS completed_at ON TABLE document_reprocessing_request TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS created ON document_reprocessing_request DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON document_reprocessing_request DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_reprocessing_request_id
+ON TABLE document_reprocessing_request FIELDS request_id UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_reprocessing_idempotency_key
+ON TABLE document_reprocessing_request FIELDS idempotency_key UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_reprocessing_source
+ON TABLE document_reprocessing_request FIELDS source;
+DEFINE INDEX IF NOT EXISTS idx_reprocessing_version
+ON TABLE document_reprocessing_request FIELDS document_version;
+DEFINE INDEX IF NOT EXISTS idx_reprocessing_status
+ON TABLE document_reprocessing_request FIELDS status;
+
+DEFINE EVENT IF NOT EXISTS intelos_document_version_reprocessing_delete
+ON TABLE document_version
+WHEN ($after == NONE)
+THEN {
+    DELETE document_reprocessing_request
+    WHERE document_version == $before.id;
+};

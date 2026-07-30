@@ -1,0 +1,55 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v2
+    command:
+      - start
+      - --log
+      - info
+      - --user
+      - ${SURREAL_USER:?Define SURREAL_USER in services/knowledge-engine/.env}
+      - --pass
+      - ${SURREAL_PASSWORD:?Define SURREAL_PASSWORD in services/knowledge-engine/.env}
+      - rocksdb:/mydata/mydatabase.db
+    user: root
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./surreal_data:/mydata
+    environment:
+      SURREAL_EXPERIMENTAL_GRAPHQL: "true"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  open_notebook:
+    build:
+      context: .
+      target: runtime
+    image: intelos-knowledge-engine:local
+    ports:
+      - "127.0.0.1:8502:8502"
+      - "127.0.0.1:5055:5055"
+    environment:
+      OPEN_NOTEBOOK_ENCRYPTION_KEY: ${OPEN_NOTEBOOK_ENCRYPTION_KEY:?Define OPEN_NOTEBOOK_ENCRYPTION_KEY in services/knowledge-engine/.env}
+      OPEN_NOTEBOOK_PASSWORD: ${OPEN_NOTEBOOK_PASSWORD:?Define OPEN_NOTEBOOK_PASSWORD in services/knowledge-engine/.env}
+      CORS_ORIGINS: http://127.0.0.1:8502,http://localhost:8502
+      SURREAL_URL: ws://surrealdb:8000/rpc
+      SURREAL_USER: ${SURREAL_USER:?Define SURREAL_USER in services/knowledge-engine/.env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Define SURREAL_PASSWORD in services/knowledge-engine/.env}
+      SURREAL_NAMESPACE: open_notebook
+      SURREAL_DATABASE: open_notebook
+
+      # Optional heavy extraction runtimes. Enable only when required.
+      # OPEN_NOTEBOOK_ENABLE_DOCLING: "true"
+      # OPEN_NOTEBOOK_ENABLE_CRAWL4AI: "true"
+      # CRAWL4AI_API_URL: http://crawl4ai:11235
+
+      # Optional worker concurrency limit for constrained local hardware.
+      # OPEN_NOTEBOOK_WORKER_MAX_TASKS: "1"
+    volumes:
+      - ./notebook_data:/app/data
+    depends_on:
+      - surrealdb
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true

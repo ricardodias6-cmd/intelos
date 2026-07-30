@@ -1,0 +1,189 @@
+name: Import validation
+
+on:
+  push:
+    branches:
+      - agent/import-validation
+  pull_request:
+    paths:
+      - .github/workflows/import-validation.yml
+      - services/knowledge-engine/**
+
+concurrency:
+  group: import-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Initialize backend test output
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'Backend tests were not executed because an earlier validation step failed.' \
+            > pytest-output.txt
+
+      - name: Lint backend
+        run: uv run ruff check api commands open_notebook tests run_api.py
+
+      - name: Run backend tests
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pytest -q 2>&1 | tee pytest-output.txt
+
+      - name: Upload backend test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-output
+          path: services/knowledge-engine/pytest-output.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Capture Python dependency audit
+        id: pip_audit
+        continue-on-error: true
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          virtual-environment: services/knowledge-engine/.venv/
+
+      - name: Decode Python dependency audit
+        if: always()
+        shell: bash
+        run: |
+          printf '%s' '${{ steps.pip_audit.outputs.internal-be-careful-output }}' \
+            | base64 --decode > pip-audit.txt
+
+      - name: Upload Python dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dependency-audit
+          path: services/knowledge-engine/pip-audit.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Python dependency audit
+        if: steps.pip_audit.outcome == 'failure'
+        shell: bash
+        run: |
+          echo 'pip-audit found a known vulnerability in the installed Python environment.'
+          exit 1
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/knowledge-engine/frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Capture production dependency audit
+        id: npm_audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high --json > npm-audit.json
+          audit_status=$?
+          echo "status=${audit_status}" >> "$GITHUB_OUTPUT"
+          node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('npm-audit.json','utf8')); console.log('npm audit summary:', data.metadata?.vulnerabilities ?? {});"
+          exit 0
+
+      - name: Upload production dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-production-audit
+          path: services/knowledge-engine/frontend/npm-audit.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce production dependency audit
+        shell: bash
+        run: |
+          if [ "${{ steps.npm_audit.outputs.status }}" -ne 0 ]; then
+            echo 'npm audit found a production vulnerability at or above the configured severity threshold.'
+            exit 1
+          fi
+
+  configuration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Docker Compose
+        env:
+          OPEN_NOTEBOOK_ENCRYPTION_KEY: validation-only-secret
+          OPEN_NOTEBOOK_PASSWORD: validation-only-password
+          SURREAL_USER: validation-user
+          SURREAL_PASSWORD: validation-password
+        run: docker compose config --quiet
+
+      - name: Reject unsafe deployment defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'OPEN_NOTEBOOK_ENCRYPTION_KEY=change-me-to-a-secret-string' docker-compose.yml; then
+            echo 'Unsafe public encryption key found in docker-compose.yml.'
+            exit 1
+          fi
+          if grep -q 'image: lfnovo/open_notebook:v1-latest' docker-compose.yml; then
+            echo 'Compose uses an external mutable image instead of the Intelos build.'
+            exit 1
+          fi
+          if grep -Eq '^\s+- "(8502|5055):(8502|5055)"' docker-compose.yml; then
+            echo 'Application ports are exposed on all host interfaces.'
+            exit 1
+          fi

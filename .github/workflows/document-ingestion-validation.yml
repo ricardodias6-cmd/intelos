@@ -1,0 +1,161 @@
+name: Document ingestion validation
+
+on:
+  push:
+    branches:
+      - agent/document-ingestion-validation
+    paths:
+      - .github/workflows/document-ingestion-validation.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/tests/test_real_document_ingestion.py
+  pull_request:
+    paths:
+      - .github/workflows/document-ingestion-validation.yml
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/tests/test_real_document_ingestion.py
+
+concurrency:
+  group: document-ingestion-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  realistic-pdf:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+    env:
+      COMPOSE_PROJECT_NAME: intelos-document-ingestion
+      OPEN_NOTEBOOK_ENCRYPTION_KEY: phase1-encryption-key-not-for-production
+      OPEN_NOTEBOOK_PASSWORD: phase1-password
+      SURREAL_USER: phase1-user
+      SURREAL_PASSWORD: phase1-surreal-password
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare disposable data directories
+        run: |
+          sudo rm -rf surreal_data notebook_data
+          mkdir -p surreal_data notebook_data
+
+      - name: Create Phase 1 Compose override
+        run: |
+          cat > /tmp/intelos-phase1-compose.yml <<'YAML'
+          services:
+            open_notebook:
+              environment:
+                OPEN_NOTEBOOK_ENABLE_DOCLING: "true"
+                INTELOS_RUN_DOCUMENT_INGESTION: "1"
+          YAML
+
+      - name: Build application image
+        run: docker compose build open_notebook
+
+      - name: Start stack with Docling enabled
+        run: docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml up -d
+
+      - name: Wait for Docling runtime and API readiness
+        run: |
+          for attempt in $(seq 1 900); do
+            if docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+              exec -T open_notebook /app/.venv/bin/python -c 'import docling' >/dev/null 2>&1 \
+              && curl --fail --silent --show-error http://127.0.0.1:5055/health \
+                | jq -e '.status == "healthy"' >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Docling runtime or API did not become ready within the allowed time."
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml ps
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml logs --no-color
+          exit 1
+
+      - name: Install Phase 1 test runtime
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+            exec -T open_notebook \
+            /bin/uv pip install \
+            --python /app/.venv/bin/python \
+            "pytest>=9.0.3" \
+            "pytest-asyncio>=1.2.0"
+
+      - name: Ingest realistic Portuguese PDF
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+            exec -T open_notebook \
+            /app/.venv/bin/pytest \
+            tests/test_real_document_ingestion.py::test_01_ingest_realistic_portuguese_pdf \
+            -vv
+
+      - name: Restart SurrealDB
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml restart surrealdb
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "SurrealDB did not recover after restart."
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml logs --no-color surrealdb
+          exit 1
+
+      - name: Verify stable evidence after restart
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+            exec -T open_notebook \
+            /app/.venv/bin/pytest \
+            tests/test_real_document_ingestion.py::test_02_verify_stable_evidence_after_database_restart \
+            -vv
+
+      - name: Record runtime observations
+        if: always()
+        run: |
+          {
+            echo '# Phase 1 document ingestion validation'
+            echo
+            echo "Commit: ${GITHUB_SHA}"
+            echo "Run: ${GITHUB_RUN_ID}, attempt ${GITHUB_RUN_ATTEMPT}"
+            echo
+            echo '## Container state'
+            echo '```'
+            docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml ps || true
+            echo '```'
+            echo
+            echo '## Docling version'
+            echo '```'
+            docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml \
+              exec -T open_notebook /app/.venv/bin/python -c \
+              "import importlib.metadata as m; print(m.version('docling'))" || true
+            echo '```'
+          } > phase1-document-ingestion-report.md
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-document-ingestion-report
+          path: services/knowledge-engine/phase1-document-ingestion-report.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml logs --no-color
+
+      - name: Remove disposable stack
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f /tmp/intelos-phase1-compose.yml down --volumes --remove-orphans || true
+          sudo rm -rf surreal_data notebook_data

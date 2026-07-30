@@ -1,0 +1,222 @@
+name: Evidence Core
+
+on:
+  push:
+    branches:
+      - agent/evidence-core-foundation
+      - agent/phase-2
+      - agent/phase-3
+      - agent/phase-4
+      - agent/phase-6
+      - agent/phase-7
+      - agent/phase-8
+      - agent/phase-8-maintenance
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/api/main.py
+      - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/audit/**
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/database/async_migrate.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
+      - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_document_versioning.py
+      - services/knowledge-engine/tests/test_evidence_retrieval.py
+      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
+      - services/knowledge-engine/tests/test_auditable_answer_models.py
+      - services/knowledge-engine/tests/test_auditable_answer.py
+      - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
+      - services/knowledge-engine/tests/test_audit_report.py
+  pull_request:
+    paths:
+      - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/api/main.py
+      - services/knowledge-engine/api/routers/evidence.py
+      - services/knowledge-engine/api/routers/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/domain/evidence.py
+      - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/audit/**
+      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/database/async_migrate.py
+      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
+      - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
+      - services/knowledge-engine/tests/test_evidence_core.py
+      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
+      - services/knowledge-engine/tests/test_evidence_migration_integration.py
+      - services/knowledge-engine/tests/test_document_versioning.py
+      - services/knowledge-engine/tests/test_evidence_retrieval.py
+      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
+      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
+      - services/knowledge-engine/tests/test_auditable_answer_models.py
+      - services/knowledge-engine/tests/test_auditable_answer.py
+      - services/knowledge-engine/tests/test_evidence_answer_api.py
+      - services/knowledge-engine/tests/test_knowledge_graph.py
+      - services/knowledge-engine/tests/test_audit_report.py
+
+concurrency:
+  group: evidence-core-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Lint Evidence Core
+        run: >-
+          uv run ruff check
+          api/main.py
+          api/routers/evidence.py
+          api/routers/knowledge_graph.py
+          open_notebook/evidence
+          open_notebook/domain/evidence.py
+          open_notebook/domain/knowledge_graph.py
+          open_notebook/knowledge_graph
+          open_notebook/audit
+          open_notebook/graphs/source.py
+          open_notebook/database/async_migrate.py
+          tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
+          tests/test_evidence_migration_integration.py
+          tests/test_document_versioning.py
+          tests/test_evidence_retrieval.py
+          tests/test_evidence_retrieval_integration.py
+          tests/test_evidence_semantic_validation.py
+          tests/test_evidence_semantic_validation_regressions.py
+          tests/test_auditable_answer_models.py
+          tests/test_auditable_answer.py
+          tests/test_evidence_answer_api.py
+          tests/test_knowledge_graph.py
+
+      - name: Run Evidence Core unit tests
+        run: >-
+          uv run pytest
+          tests/test_evidence_core.py
+          tests/test_docling_evidence_adapter.py
+          tests/test_document_versioning.py
+          tests/test_evidence_retrieval.py
+          tests/test_evidence_semantic_validation.py
+          tests/test_evidence_semantic_validation_regressions.py
+          tests/test_auditable_answer_models.py
+          tests/test_auditable_answer.py
+          tests/test_evidence_answer_api.py
+          tests/test_knowledge_graph.py
+          tests/test_audit_report.py
+
+  migration-integration:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/knowledge-engine
+    env:
+      INTELOS_RUN_SURREAL_INTEGRATION: "1"
+      INTELOS_RUN_EVIDENCE_RETRIEVAL: "1"
+      SURREAL_URL: ws://127.0.0.1:8000/rpc
+      SURREAL_USER: root
+      SURREAL_PASSWORD: intelos-ci-migration-password
+      SURREAL_NAMESPACE: intelos_ci
+      SURREAL_DATABASE: evidence_migration
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/knowledge-engine/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Start disposable SurrealDB
+        run: |
+          docker run --detach \
+            --name intelos-surreal-migration \
+            --publish 127.0.0.1:8000:8000 \
+            surrealdb/surrealdb:v2 \
+            start \
+            --log info \
+            --user "$SURREAL_USER" \
+            --pass "$SURREAL_PASSWORD" \
+            memory
+
+      - name: Wait for SurrealDB readiness
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "SurrealDB did not become ready within the allowed time."
+          docker logs intelos-surreal-migration
+          exit 1
+
+      - name: Test migrations 24 through 29
+        run: uv run pytest tests/test_evidence_migration_integration.py -vv
+
+      - name: Test hybrid evidence retrieval end to end
+        run: uv run pytest tests/test_evidence_retrieval_integration.py -vv
+
+      - name: Record SurrealDB logs
+        if: always()
+        run: docker logs intelos-surreal-migration || true
+
+      - name: Remove disposable SurrealDB
+        if: always()
+        run: docker rm --force intelos-surreal-migration || true

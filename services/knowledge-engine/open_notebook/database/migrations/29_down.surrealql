@@ -1,0 +1,13 @@
+-- Rollback Migration 29: remove document revocation and reprocessing queue
+
+REMOVE EVENT IF EXISTS intelos_document_version_reprocessing_delete ON TABLE document_version;
+
+REMOVE INDEX IF EXISTS idx_reprocessing_status ON TABLE document_reprocessing_request;
+REMOVE INDEX IF EXISTS idx_reprocessing_version ON TABLE document_reprocessing_request;
+REMOVE INDEX IF EXISTS idx_reprocessing_source ON TABLE document_reprocessing_request;
+REMOVE INDEX IF EXISTS idx_reprocessing_idempotency_key ON TABLE document_reprocessing_request;
+REMOVE INDEX IF EXISTS idx_reprocessing_request_id ON TABLE document_reprocessing_request;
+
+REMOVE TABLE IF EXISTS document_reprocessing_request;
+
+REMOVE FIELD IF EXISTS revocation_reason ON TABLE document_version;

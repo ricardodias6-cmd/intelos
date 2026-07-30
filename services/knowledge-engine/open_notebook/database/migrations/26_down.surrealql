@@ -1,0 +1,16 @@
+-- Rollback Migration 26: Remove persistent knowledge graph
+
+REMOVE EVENT IF EXISTS intelos_knowledge_evidence_delete ON TABLE evidence_block;
+REMOVE EVENT IF EXISTS intelos_knowledge_entity_delete ON TABLE knowledge_entity;
+
+REMOVE INDEX IF EXISTS idx_entity_evidence_endpoints ON TABLE entity_evidence;
+REMOVE INDEX IF EXISTS idx_entity_evidence_id ON TABLE entity_evidence;
+REMOVE INDEX IF EXISTS idx_knowledge_relation_endpoints ON TABLE knowledge_relation;
+REMOVE INDEX IF EXISTS idx_knowledge_relation_type ON TABLE knowledge_relation;
+REMOVE INDEX IF EXISTS idx_knowledge_relation_id ON TABLE knowledge_relation;
+REMOVE INDEX IF EXISTS idx_knowledge_entity_name ON TABLE knowledge_entity;
+REMOVE INDEX IF EXISTS idx_knowledge_entity_id ON TABLE knowledge_entity;
+
+REMOVE TABLE IF EXISTS entity_evidence;
+REMOVE TABLE IF EXISTS knowledge_relation;
+REMOVE TABLE IF EXISTS knowledge_entity;

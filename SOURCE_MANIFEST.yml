@@ -1,0 +1,16 @@
+schema_version: 1
+project:
+  name: Intelos
+  visibility: private
+  intended_use: personal_only
+components:
+  - id: open-notebook
+    name: Open Notebook
+    repository: lfnovo/open-notebook
+    upstream_commit: 62b071b9172a2c823ddd918e0947a782df63be13
+    license: MIT
+    license_file: LICENSES/open-notebook-MIT.txt
+    destination: services/knowledge-engine
+    import_method: pinned_source_snapshot
+    status: imported
+    modifications: []
