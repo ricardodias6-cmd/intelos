@@ -8,7 +8,11 @@ O Intelos destina-se única e exclusivamente ao uso pessoal do proprietário do 
 
 ## Estado do projeto
 
-Repositório inicial criado. A arquitetura, os componentes open source e as integrações serão incorporados de forma controlada, com registo de origem, versão, licença e alterações efetuadas.
+As Fases 0–9 estão implementadas, validadas e integradas na main. O sistema já dispõe de ingestão documental, recuperação híbrida, respostas auditáveis, geração condicionada à evidência, grafo persistente, manutenção de versões, Copilot conversacional e deteção de frescura da evidência.
+
+A próxima etapa é a Fase 10 — Consolidação da superfície de auditoria e prontidão operacional. O seu contrato está definido em [ADR-0012](docs/decisions/ADR-0012-audit-surface-and-operational-readiness.md).
+
+A roadmap canónica está em [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Princípios
 
