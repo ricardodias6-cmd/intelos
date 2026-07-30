@@ -147,7 +147,7 @@ async def test_audit_query_endpoint_returns_page(
             has_more=False,
         )
 
-    monkeypatch.setattr(evidence, "list_persisted_audit_reports", fake_list)
+    monkeypatch.setattr(evidence, "list_audit_reports", fake_list)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
