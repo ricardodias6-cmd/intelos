@@ -9,8 +9,8 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from open_notebook.audit.models import AuditConflict
-from open_notebook.evidence.auditable_answer import AuditableAnswerRequest
 from open_notebook.copilot.presentation import render_copilot_answer
+from open_notebook.evidence.auditable_answer import AuditableAnswerRequest
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
