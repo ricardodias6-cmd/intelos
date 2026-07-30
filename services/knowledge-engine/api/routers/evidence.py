@@ -8,7 +8,7 @@ from open_notebook.audit import (
     AuditReportQuery,
     get_audit_freshness,
     get_audit_report,
-    list_audit_reports as list_persisted_audit_reports,
+    list_audit_reports,
 )
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
@@ -154,7 +154,7 @@ async def get_answer_audit_report(answer_id: str) -> AuditReport:
 async def list_audit_report_history(
     query: AuditReportQuery = Depends(),
 ) -> AuditReportPage:
-    return await list_persisted_audit_reports(query)
+    return await list_audit_reports(query)
 
 
 @router.get(
