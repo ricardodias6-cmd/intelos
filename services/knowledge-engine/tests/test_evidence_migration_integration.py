@@ -87,6 +87,13 @@ async def _evidence_table_schema() -> str:
     return repr(await repo_query("INFO FOR TABLE evidence_block;"))
 
 
+
+
+async def _audit_table_schema() -> str:
+    """Return audit_report fields and indexes from the correct schema scope."""
+    return repr(await repo_query("INFO FOR TABLE audit_report;"))
+
+
 def _assert_evidence_schema_present(schema: str) -> None:
     for table in EVIDENCE_TABLES:
         assert table in schema
@@ -223,7 +230,7 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     _assert_retrieval_schema_present(await _evidence_table_schema())
     _assert_graph_schema_present(await _database_schema())
     _assert_audit_schema_present(await _database_schema())
-    _assert_audit_freshness_schema_present(await _database_schema())
+    _assert_audit_freshness_schema_present(await _audit_table_schema())
     _assert_versioning_schema_present(await _database_schema())
     _assert_reprocessing_schema_present(await _database_schema())
     _assert_copilot_schema_present(await _database_schema())
@@ -316,7 +323,7 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 30
     _assert_audit_schema_present(await _database_schema())
-    _assert_audit_freshness_schema_absent(await _database_schema())
+    _assert_audit_freshness_schema_absent(await _audit_table_schema())
 
     await manager.runner.run_one_down()
     assert await manager.get_current_version() == 29
