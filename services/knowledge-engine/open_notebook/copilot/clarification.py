@@ -65,7 +65,7 @@ def requires_clarification(
 
     normalized = " ".join(question.casefold().split())
     if any(
-        re.search(rf"(?<!\\w){re.escape(marker)}(?!\\w)", normalized)
+        re.search(rf"(?<![A-Za-z0-9_]){re.escape(marker)}(?![A-Za-z0-9_])", normalized)
         for marker in _AMBIGUOUS_MARKERS
     ):
         return ClarificationDecision.required_for_deictic_reference()
