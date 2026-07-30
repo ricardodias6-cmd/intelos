@@ -13,6 +13,7 @@ from open_notebook.audit.models import (
 )
 from open_notebook.audit.freshness import evaluate_audit_freshness
 from open_notebook.audit.persistence import (
+    get_audit_freshness,
     get_audit_report,
     persist_audit_report,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "AuditReportPersistenceResult",
     "AuditTraceEvent",
     "evaluate_audit_freshness",
+    "get_audit_freshness",
     "get_audit_report",
     "persist_audit_report",
 ]
