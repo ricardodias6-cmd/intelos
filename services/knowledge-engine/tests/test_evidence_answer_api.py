@@ -7,7 +7,7 @@ import pytest
 
 from api.main import app
 from api.routers import evidence
-from open_notebook.audit import AuditReport
+from open_notebook.audit import AuditFreshness, AuditFreshnessStatus, AuditReport
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
@@ -168,3 +168,34 @@ async def test_audit_endpoint_returns_persisted_report(
     assert body["audit_id"] == "AUDIT_API_001"
     assert body["answer_id"] == "ANSWER_API_001"
     assert body["status"] == "insufficient_evidence"
+
+
+@pytest.mark.asyncio
+async def test_freshness_endpoint_returns_current_assessment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_get(answer_id: str) -> AuditFreshness:
+        assert answer_id == "ANSWER_API_001"
+        return AuditFreshness(
+            status=AuditFreshnessStatus.OUTDATED,
+            requires_revalidation=True,
+            reason="A referenced version was revoked.",
+            affected_evidence_ids=["EV_ONE"],
+        )
+
+    monkeypatch.setattr(evidence, "get_audit_freshness", fake_get)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/evidence/answer/ANSWER_API_001/freshness"
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "outdated"
+    assert body["requires_revalidation"] is True
+    assert body["affected_evidence_ids"] == ["EV_ONE"]
