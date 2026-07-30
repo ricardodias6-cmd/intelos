@@ -14,7 +14,10 @@ from open_notebook.audit.models import AuditReport
 from open_notebook.audit.persistence import (
     get_audit_report_by_id,
 )
-from open_notebook.database.repository import repo_upsert, repo_query
+from open_notebook.database.repository import (
+    repo_query,
+    repo_upsert,
+)
 from open_notebook.exceptions import InvalidInputError
 
 
