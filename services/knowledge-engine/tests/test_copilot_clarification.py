@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from open_notebook.copilot.clarification import requires_clarification
+from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.copilot.models import (
     CopilotChatRequest,
     CopilotChatResponse,
