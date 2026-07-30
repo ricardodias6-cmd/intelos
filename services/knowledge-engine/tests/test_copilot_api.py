@@ -130,6 +130,9 @@ async def test_copilot_endpoint_returns_auditable_response(
     assert calls[0].max_evidence == 6
     assert calls[0].source_id is None
     assert calls[0].version_hash is None
+    assert calls[0].conversation_id == body["conversation_id"]
+    assert calls[0].turn_id == body["turn_id"]
+    assert calls[0].response_mode == "audit"
 
 
 @pytest.mark.asyncio
