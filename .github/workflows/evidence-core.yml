@@ -165,6 +165,7 @@ jobs:
           tests/test_audit_freshness.py
           tests/test_audit_query.py
           tests/test_audit_presentation.py
+          tests/test_audit_revalidation.py
 
       - name: Run Evidence Core unit tests
         run: >-
