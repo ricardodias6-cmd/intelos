@@ -7,6 +7,7 @@ import pytest
 from open_notebook.copilot.clarification import requires_clarification
 from open_notebook.copilot.models import (
     CopilotChatRequest,
+    CopilotChatResponse,
     CopilotResponseMode,
 )
 from open_notebook.evidence import auditable_answer
