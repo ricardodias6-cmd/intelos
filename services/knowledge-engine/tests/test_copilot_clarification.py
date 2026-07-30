@@ -4,12 +4,12 @@ from typing import Any
 
 import pytest
 
-from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.copilot.models import (
     CopilotChatRequest,
     CopilotChatResponse,
     CopilotResponseMode,
 )
+from open_notebook.evidence.clarification import requires_clarification
 from open_notebook.evidence import auditable_answer
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
