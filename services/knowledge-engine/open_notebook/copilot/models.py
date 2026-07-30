@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from open_notebook.audit.models import AuditConflict
+from open_notebook.evidence.auditable_answer import AuditableAnswerRequest
 from open_notebook.evidence.auditable_models import (
     AnswerAuditMetadata,
     AnswerCitation,
@@ -81,16 +83,20 @@ class CopilotChatRequest(BaseModel):
             raise ValueError("conversation_id cannot be blank")
         return normalized
 
-    def to_auditable_answer_request(self) -> object:
+    def to_auditable_answer_request(
+        self,
+        *,
+        conversation_context: Sequence[str] = (),
+    ) -> AuditableAnswerRequest:
         """Build the phase 4 request without exposing Copilot-only fields."""
-
-        from open_notebook.evidence.auditable_answer import AuditableAnswerRequest
 
         return AuditableAnswerRequest(
             question=self.question,
             max_evidence=self.max_evidence,
             source_id=self.source_id,
             version_hash=self.version_hash,
+            conversation_context=list(conversation_context),
+            include_knowledge_graph=self.include_knowledge_graph,
         )
 
 
