@@ -5,7 +5,9 @@ from __future__ import annotations
 from hashlib import sha256
 from typing import Any
 
+from open_notebook.audit.freshness import evaluate_audit_freshness
 from open_notebook.audit.models import (
+    AuditFreshness,
     AuditReport,
     AuditReportPersistenceResult,
 )
@@ -94,4 +96,12 @@ async def get_audit_report(answer_id: str) -> AuditReport:
         raise NotFoundError(
             f"No audit report found for answer {answer_id}"
         )
-    return AuditReport.model_validate(rows[0])
+    report = AuditReport.model_validate(rows[0])
+    freshness = await evaluate_audit_freshness(report.selected_evidence_ids)
+    return report.model_copy(update={"freshness": freshness})
+
+
+async def get_audit_freshness(answer_id: str) -> AuditFreshness:
+    """Return the current freshness assessment for one answer."""
+
+    return (await get_audit_report(answer_id)).freshness
