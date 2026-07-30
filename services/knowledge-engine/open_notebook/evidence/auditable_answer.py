@@ -40,6 +40,7 @@ from open_notebook.evidence.semantic_validation import (
     validate_claim_semantics,
 )
 from open_notebook.exceptions import InvalidInputError
+from open_notebook.copilot.clarification import requires_clarification
 from open_notebook.knowledge_graph.expansion import (
     KnowledgeGraphExpansion,
     expand_knowledge_graph,
@@ -192,6 +193,8 @@ async def _persist_answer_audit(
             "source_id": request.source_id,
             "version_hash": request.version_hash,
             "conversation_context": request.conversation_context,
+            "clarification_required": answer.status == AuditableAnswerStatus.CLARIFICATION_REQUIRED,
+            "clarification_question": answer.clarification_question,
             "graph_expansion": (
                 {
                     "entity_ids": graph_expansion.entity_ids,
@@ -585,6 +588,42 @@ async def build_auditable_answer(
 
     if not request.question.strip():
         raise InvalidInputError("Auditable answer question cannot be empty")
+
+    clarification = requires_clarification(
+        request.question,
+        conversation_context=request.conversation_context,
+    )
+    if clarification.required:
+        timings["clarification"] = 0
+        timings["total"] = round(
+            (time.perf_counter() - started_at) * 1000
+        )
+        answer = AuditableAnswer(
+            answer=(
+                "Preciso de um esclarecimento para responder "
+                "com precisão."
+            ),
+            claims=[],
+            citations=[],
+            overall_confidence=0,
+            requires_human_review=False,
+            status=AuditableAnswerStatus.CLARIFICATION_REQUIRED,
+            clarification_question=clarification.question,
+            audit=AnswerAuditMetadata(
+                question_hash=_question_hash(request.question),
+                selected_evidence_ids=[],
+                retrieval_scores={},
+                pipeline_version="phase-9",
+                stage_durations_ms=timings,
+            ),
+        )
+        return await _persist_answer_audit(
+            request,
+            answer,
+            [],
+            [],
+            model_id=model_id,
+        )
 
     retrieval_started = time.perf_counter()
     retrieval = await retrieve_evidence(
