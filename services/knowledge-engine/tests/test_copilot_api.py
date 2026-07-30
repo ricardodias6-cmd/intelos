@@ -17,6 +17,20 @@ from open_notebook.evidence.auditable_models import (
 from open_notebook.evidence.models import ClaimKind, SupportStatus
 
 
+@pytest.fixture(autouse=True)
+def stub_conversation_persistence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_load(*args: Any, **kwargs: Any) -> list[Any]:
+        return []
+
+    async def fake_persist(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(copilot, "load_recent_conversation_context", fake_load)
+    monkeypatch.setattr(copilot, "persist_conversation_turn", fake_persist)
+
+
 def _answered_response() -> AuditableAnswer:
     return AuditableAnswer(
         answer_id="ANSWER_COPILOT_001",
