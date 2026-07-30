@@ -8,10 +8,13 @@ from open_notebook.audit import (
     AuditReport,
     AuditReportPage,
     AuditReportQuery,
+    AuditRevalidationRequest,
+    AuditRevalidationResult,
     get_audit_freshness,
     get_audit_presentation,
     get_audit_report,
     list_audit_reports,
+    revalidate_audit_report,
 )
 from open_notebook.evidence.auditable_answer import (
     AuditableAnswerRequest,
@@ -172,6 +175,22 @@ async def get_answer_audit_presentation(
         return await get_audit_presentation(answer_id, mode)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/evidence/answer/{answer_id}/audit/revalidate",
+    response_model=AuditRevalidationResult,
+)
+async def revalidate_answer_audit(
+    answer_id: str,
+    request: AuditRevalidationRequest,
+) -> AuditRevalidationResult:
+    try:
+        return await revalidate_audit_report(answer_id, request)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get(
