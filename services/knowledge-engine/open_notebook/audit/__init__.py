@@ -1,5 +1,6 @@
 """Explainable audit report contracts and persistence."""
 
+from open_notebook.audit.freshness import evaluate_audit_freshness
 from open_notebook.audit.models import (
     AuditConflict,
     AuditConflictSeverity,
@@ -11,7 +12,6 @@ from open_notebook.audit.models import (
     AuditReportPersistenceResult,
     AuditTraceEvent,
 )
-from open_notebook.audit.freshness import evaluate_audit_freshness
 from open_notebook.audit.persistence import (
     get_audit_freshness,
     get_audit_report,
