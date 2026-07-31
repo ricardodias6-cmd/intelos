@@ -4,7 +4,7 @@ Este documento é a referência de estado do projeto. O Intelos é um sistema pr
 
 ## Estado atual
 
-A main contém as Fases 0–9 concluídas e integradas. A Fase 10 é a próxima etapa de desenvolvimento.
+A main contém as Fases 0–9 concluídas e integradas e já inclui as subfases 10.1–10.5 da Fase 10. A subfase 10.6 fecha a integração diária Chat → Auditoria → Revalidação.
 
 | Fase | Tema | Estado |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ A main contém as Fases 0–9 concluídas e integradas. A Fase 10 é a próxima 
 | 7 | Explainable AI | Concluída |
 | 8 | Autonomous Knowledge Maintenance | Concluída |
 | 9 | Intelos Copilot | Concluída |
-| 10 | Superfície de auditoria e prontidão operacional | Próxima |
+| 10 | Superfície de auditoria e prontidão operacional | Em conclusão |
 
 ## Fase 10 — Superfície de auditoria e prontidão operacional
 
@@ -51,6 +51,18 @@ Tornar a auditabilidade utilizável no ciclo diário do Copilot, preservando o c
    - documentar falhas, recuperação e retenção;
    - validar migrações, contratos, segurança e regressões em CI;
    - manter o sistema limitado ao uso pessoal local até existir avaliação própria de exposição.
+
+5. **Integração frontend da auditoria** — concluída na main
+   - painel de apresentação com os modos summary, detailed e audit;
+   - indicadores de confiança, frescura, conflitos e decisões de evidência;
+   - consulta por answer_id com tratamento seguro de erros.
+
+6. **Fecho do ciclo Chat → Auditoria → Revalidação** — em implementação
+   - transportar answer_id, audit_report_id, conversation_id e turn_id nas mensagens AI;
+   - abrir a auditoria diretamente a partir da resposta do Chat;
+   - iniciar revalidação controlada e mostrar os novos identificadores;
+   - consultar visualmente o histórico por conversa, turno e frescura;
+   - validar o fluxo completo com testes end-to-end.
 
 ### Critérios de aceitação
 
