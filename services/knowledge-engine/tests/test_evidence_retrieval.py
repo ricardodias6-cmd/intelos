@@ -268,3 +268,163 @@ async def test_partial_indexing_failure_preserves_successes_and_recovers(
     assert second.skipped == 1
     assert all(row["indexing_status"] == "indexed" for row in rows)
     assert all(row["indexing_error"] is None for row in rows)
+
+
+def _version_row(
+    version_id: str,
+    *,
+    version_hash: str,
+    status: str | None,
+    created: str,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": version_id,
+        "source": "source:one",
+        "version_hash": version_hash,
+        "created": created,
+    }
+    if status is not None:
+        row["status"] = status
+    return row
+
+
+def _block_row(evidence_id: str, version_id: str) -> dict[str, Any]:
+    return {
+        "id": f"evidence_block:{evidence_id.lower()}",
+        "evidence_id": evidence_id,
+        "source": "source:one",
+        "document_version": version_id,
+        "raw_text": "Compete à entidade X autorizar a medida.",
+        "verified_text": None,
+        "pdf_page": 1,
+        "printed_page": "1",
+        "section_path": [],
+        "block_type": "paragraph",
+        "bbox": None,
+        "embedding": None,
+        "verification_status": "automatically_verified",
+    }
+
+
+@pytest.mark.asyncio
+async def test_revoked_version_is_never_retrieved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A revoked current version removes the source instead of falling back."""
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        if "FROM document_version" in query:
+            return [
+                _version_row(
+                    "document_version:new",
+                    version_hash="b" * 64,
+                    status="revoked",
+                    created="2026-07-28T12:00:00Z",
+                ),
+                _version_row(
+                    "document_version:old",
+                    version_hash="a" * 64,
+                    status="superseded",
+                    created="2026-07-27T12:00:00Z",
+                ),
+            ]
+        if "FROM evidence_block" in query:
+            raise AssertionError("no version should have been selected")
+        if "FROM source" in query:
+            return []
+        raise AssertionError(f"Unexpected query: {query}")
+
+    monkeypatch.setattr(retrieval, "repo_query", fake_repo_query)
+
+    response = await retrieve_evidence(
+        query="autorizar a medida",
+        filters=EvidenceSearchFilters(),
+        allow_legacy_fallback=False,
+    )
+
+    assert response.hits == []
+    assert response.selected_versions == {}
+
+
+@pytest.mark.asyncio
+async def test_superseded_version_is_reachable_only_when_pinned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        if "FROM document_version" in query:
+            return [
+                _version_row(
+                    "document_version:old",
+                    version_hash="a" * 64,
+                    status="superseded",
+                    created="2026-07-27T12:00:00Z",
+                )
+            ]
+        if "FROM evidence_block" in query:
+            return [_block_row("EV_PINNED_001", "document_version:old")]
+        if "FROM source" in query:
+            return [{"id": "source:one", "title": "Regulamento"}]
+        raise AssertionError(f"Unexpected query: {query}")
+
+    monkeypatch.setattr(retrieval, "repo_query", fake_repo_query)
+
+    pinned = await retrieve_evidence(
+        query="autorizar a medida",
+        filters=EvidenceSearchFilters(version_hash="a" * 64),
+        allow_legacy_fallback=False,
+    )
+    unpinned = await retrieve_evidence(
+        query="autorizar a medida",
+        filters=EvidenceSearchFilters(),
+        allow_legacy_fallback=False,
+    )
+
+    assert [hit.evidence_id for hit in pinned.hits] == ["EV_PINNED_001"]
+    assert unpinned.hits == []
+
+
+@pytest.mark.asyncio
+async def test_rejected_evidence_is_excluded_from_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rejected blocks are filtered in the query and again before ranking."""
+
+    captured: dict[str, Any] = {}
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        if "FROM document_version" in query:
+            return [
+                _version_row(
+                    "document_version:new",
+                    version_hash="b" * 64,
+                    status="current",
+                    created="2026-07-28T12:00:00Z",
+                )
+            ]
+        if "FROM evidence_block" in query:
+            captured["clause"] = query
+            captured["rejected_status"] = (variables or {}).get("rejected_status")
+            rejected = _block_row("EV_REJECTED_001", "document_version:new")
+            rejected["verification_status"] = "rejected"
+            return [rejected, _block_row("EV_GOOD_001", "document_version:new")]
+        if "FROM source" in query:
+            return [{"id": "source:one", "title": "Regulamento"}]
+        raise AssertionError(f"Unexpected query: {query}")
+
+    monkeypatch.setattr(retrieval, "repo_query", fake_repo_query)
+
+    response = await retrieve_evidence(
+        query="autorizar a medida",
+        filters=EvidenceSearchFilters(),
+        allow_legacy_fallback=False,
+    )
+
+    assert "verification_status != $rejected_status" in captured["clause"]
+    assert captured["rejected_status"] == "rejected"
+    assert [hit.evidence_id for hit in response.hits] == ["EV_GOOD_001"]
