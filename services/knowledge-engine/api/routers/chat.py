@@ -179,7 +179,8 @@ async def create_session(request: CreateSessionRequest):
 
 
 @router.get(
-    "/chat/sessions/{session_id}", response_model=ChatSessionWithMessagesResponse
+    "/chat/sessions/{session_id}",
+    response_model=ChatSessionWithMessagesResponse,
 )
 async def get_session(session_id: str):
     """Get a specific session with its messages."""
@@ -302,11 +303,7 @@ async def delete_session(session_id: str):
         raise HTTPException(status_code=500, detail=f"Error deleting session: {str(e)}")
 
 
-@router.post(
-    "/chat/execute",
-    response_model=ExecuteChatResponse,
-    response_model_exclude_none=True,
-)
+@router.post("/chat/execute", response_model=ExecuteChatResponse)
 async def execute_chat(request: ExecuteChatRequest):
     """Execute a chat request and get AI response."""
     try:
