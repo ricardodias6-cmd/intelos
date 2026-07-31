@@ -75,17 +75,14 @@ def test_auditable_chat_graph_emits_answer_and_audit_ids(
     assert message.additional_kwargs["conversation_id"] == "chat_session:SESSION_001"
 
 
-def test_auditable_chat_scope_is_empty_when_no_source_is_selected(
+def test_auditable_chat_explains_when_no_source_is_selected(
     monkeypatch,
 ) -> None:
-    async def fake_build(request, *, model_id=None):
-        assert request.source_ids == []
-        return SimpleNamespace(
-            answer_id="ANSWER_CHAT_EMPTY_SCOPE",
-            audit_report_id="AUDIT_CHAT_EMPTY_SCOPE",
-            answer="Não foi encontrada evidência suficiente.",
-            status=SimpleNamespace(value="insufficient_evidence"),
-        )
+    calls: list[object] = []
+
+    async def fake_build(request, *, model_id=None):  # pragma: no cover - must not run
+        calls.append(request)
+        raise AssertionError("the pipeline must not run without a source in context")
 
     monkeypatch.setattr(chat, "build_auditable_answer", fake_build)
 
@@ -104,4 +101,9 @@ def test_auditable_chat_scope_is_empty_when_no_source_is_selected(
         RunnableConfig(),
     )
 
-    assert result["messages"].id == "ANSWER_CHAT_EMPTY_SCOPE"
+    message = result["messages"]
+    assert calls == []
+    assert "fonte no contexto" in message.content
+    assert message.additional_kwargs["audit_status"] == "no_source_in_context"
+    assert "answer_id" not in message.additional_kwargs
+    assert message.additional_kwargs["turn_id"] == "TURN_CHAT_002"
