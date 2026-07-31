@@ -116,3 +116,29 @@ async def test_health_and_operational_endpoints(
     assert ready.json()["status"] == "ready"
     assert operational.status_code == 200
     assert operational.json()["audit_revalidations_replayed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_readiness_endpoint_returns_503_when_database_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_readiness() -> ReadinessResponse:
+        return ReadinessResponse(
+            status="not_ready",
+            checks={"database": "unreachable"},
+        )
+
+    monkeypatch.setattr("api.main.check_readiness", fake_readiness)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "checks": {"database": "unreachable"},
+    }
