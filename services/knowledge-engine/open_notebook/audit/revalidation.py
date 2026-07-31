@@ -209,10 +209,16 @@ def _request_from_report(report: AuditReport):
     )
     minimum_score = _bounded_float("minimum_score", 0.05)
     source_id = metadata.get("source_id")
+    source_ids = metadata.get("source_ids")
     version_hash = metadata.get("version_hash")
     conversation_context = metadata.get("conversation_context", [])
     if not isinstance(source_id, str):
         source_id = None
+    if source_ids is not None and (
+        not isinstance(source_ids, list)
+        or not all(isinstance(item, str) for item in source_ids)
+    ):
+        source_ids = None
     if not isinstance(version_hash, str):
         version_hash = None
     if not isinstance(conversation_context, list) or not all(
@@ -229,6 +235,7 @@ def _request_from_report(report: AuditReport):
         candidate_limit=candidate_limit,
         minimum_score=minimum_score,
         source_id=source_id,
+        source_ids=source_ids,
         version_hash=version_hash,
         conversation_context=conversation_context,
         regeneration_attempts=1,
