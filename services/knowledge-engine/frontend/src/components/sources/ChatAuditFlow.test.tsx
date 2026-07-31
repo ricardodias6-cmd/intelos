@@ -138,6 +138,7 @@ function ChatAuditFlowHarness() {
 
 describe('Chat to audit flow', () => {
   beforeEach(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn()
     vi.clearAllMocks()
     vi.mocked(auditApi.getPresentation).mockImplementation(async (answerId) => (
       answerId === 'ANSWER_FLOW_002'
