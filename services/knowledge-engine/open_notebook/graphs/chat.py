@@ -3,7 +3,7 @@ import sqlite3
 from typing import Annotated, Optional
 
 from ai_prompter import Prompter
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -13,6 +13,10 @@ from typing_extensions import TypedDict
 from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.config import LANGGRAPH_CHECKPOINT_FILE
 from open_notebook.domain.notebook import Notebook
+from open_notebook.evidence.auditable_answer import (
+    AuditableAnswerRequest,
+    build_auditable_answer,
+)
 from open_notebook.exceptions import OpenNotebookError
 from open_notebook.utils import clean_thinking_content
 from open_notebook.utils.error_classifier import classify_error
@@ -25,10 +29,17 @@ class ThreadState(TypedDict):
     context: Optional[str]
     context_config: Optional[dict]
     model_override: Optional[str]
+    audit_enabled: Optional[bool]
+    audit_conversation_id: Optional[str]
+    audit_turn_id: Optional[str]
+    audit_response_mode: Optional[str]
 
 
 def call_model_with_messages(state: ThreadState, config: RunnableConfig) -> dict:
     try:
+        if state.get("audit_enabled"):
+            return _call_auditable_model(state)
+
         system_prompt = Prompter(prompt_template="chat/system").render(data=state)  # type: ignore[arg-type]
         payload = [SystemMessage(content=system_prompt)] + state.get("messages", [])
         model_id = config.get("configurable", {}).get("model_id") or state.get(
@@ -83,6 +94,75 @@ def call_model_with_messages(state: ThreadState, config: RunnableConfig) -> dict
     except Exception as e:
         error_class, user_message = classify_error(e)
         raise error_class(user_message) from e
+
+
+def _call_auditable_model(state: ThreadState) -> dict:
+    human_messages = [
+        message
+        for message in state.get("messages", [])
+        if getattr(message, "type", None) == "human"
+    ]
+    if not human_messages:
+        raise OpenNotebookError("Auditable chat requires a human question")
+
+    question = str(human_messages[-1].content).strip()
+    conversation_id = state.get("audit_conversation_id")
+    turn_id = state.get("audit_turn_id")
+    response_mode = state.get("audit_response_mode") or "detailed"
+    if not conversation_id or not turn_id:
+        raise OpenNotebookError(
+            "Auditable chat requires conversation and turn identifiers"
+        )
+
+    conversation_context = [
+        str(message.content)
+        for message in state.get("messages", [])[-7:-1]
+        if getattr(message, "content", None)
+    ]
+    request = AuditableAnswerRequest(
+        question=question,
+        conversation_id=conversation_id,
+        turn_id=turn_id,
+        response_mode=response_mode,
+        conversation_context=conversation_context,
+    )
+
+    def run_answer():
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(build_auditable_answer(request))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    try:
+        asyncio.get_running_loop()
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            answer = executor.submit(run_answer).result()
+    except RuntimeError:
+        answer = asyncio.run(build_auditable_answer(request))
+
+    if not answer.answer_id or not answer.audit_report_id:
+        raise OpenNotebookError(
+            "Auditable chat did not produce stable audit identifiers"
+        )
+
+    return {
+        "messages": AIMessage(
+            id=answer.answer_id,
+            content=answer.answer,
+            additional_kwargs={
+                "answer_id": answer.answer_id,
+                "audit_report_id": answer.audit_report_id,
+                "conversation_id": conversation_id,
+                "turn_id": turn_id,
+                "audit_status": answer.status.value,
+            },
+        )
+    }
 
 
 conn = sqlite3.connect(

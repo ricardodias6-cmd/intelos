@@ -27,6 +27,31 @@ class ChatMessage(BaseModel):
     type: str = Field(..., description="Message type (human|ai)")
     content: str = Field(..., description="Message content")
     timestamp: Optional[str] = Field(None, description="Message timestamp")
+    answer_id: Optional[str] = Field(
+        None,
+        description="Auditable answer ID",
+        exclude_if=lambda value: value is None,
+    )
+    audit_report_id: Optional[str] = Field(
+        None,
+        description="Persisted audit report ID",
+        exclude_if=lambda value: value is None,
+    )
+    conversation_id: Optional[str] = Field(
+        None,
+        description="Audit conversation identifier",
+        exclude_if=lambda value: value is None,
+    )
+    turn_id: Optional[str] = Field(
+        None,
+        description="Audit turn identifier",
+        exclude_if=lambda value: value is None,
+    )
+    audit_status: Optional[str] = Field(
+        None,
+        description="Auditable answer status",
+        exclude_if=lambda value: value is None,
+    )
 
 
 class SuccessResponse(BaseModel):
@@ -83,12 +108,21 @@ def extract_chat_messages(raw_messages: Iterable[Any]) -> List[ChatMessage]:
     """Convert LangGraph/LangChain state messages into `ChatMessage` models."""
     messages: List[ChatMessage] = []
     for msg in raw_messages:
+        additional_kwargs = getattr(msg, "additional_kwargs", {}) or {}
+        if not isinstance(additional_kwargs, dict):
+            additional_kwargs = {}
+
         messages.append(
             ChatMessage(
-                id=getattr(msg, "id", f"msg_{len(messages)}"),
+                id=str(getattr(msg, "id", None) or f"msg_{len(messages)}"),
                 type=msg.type if hasattr(msg, "type") else "unknown",
                 content=msg.content if hasattr(msg, "content") else str(msg),
                 timestamp=None,  # LangChain messages don't have timestamps by default
+                answer_id=additional_kwargs.get("answer_id"),
+                audit_report_id=additional_kwargs.get("audit_report_id"),
+                conversation_id=additional_kwargs.get("conversation_id"),
+                turn_id=additional_kwargs.get("turn_id"),
+                audit_status=additional_kwargs.get("audit_status"),
             )
         )
     return messages

@@ -7,6 +7,8 @@ import type { AuditPresentation } from '@/lib/types/audit'
 vi.mock('@/lib/api/audit', () => ({
   auditApi: {
     getPresentation: vi.fn(),
+    revalidate: vi.fn(),
+    listReports: vi.fn(),
   },
 }))
 
@@ -83,6 +85,64 @@ describe('AuditPresentationPanel', () => {
     expect(await screen.findByTestId('audit-presentation')).toBeInTheDocument()
     expect(screen.getAllByText('A entidade competente decide.')).toHaveLength(2)
     expect(screen.queryByText('metadata')).not.toBeInTheDocument()
+  })
+
+  it('revalidates a stale audit and exposes the new identifiers', async () => {
+    const stalePresentation = {
+      ...presentation,
+      freshness: {
+        status: 'outdated' as const,
+        requires_revalidation: true,
+        reason: 'Document changed.',
+        change_ids: ['CHANGE_FRONTEND_001'],
+        affected_evidence_ids: ['EV_FRONTEND_001'],
+        checked_at: '2026-07-31T00:00:00Z',
+      },
+    }
+    const refreshedPresentation = {
+      ...presentation,
+      answer_id: 'ANSWER_FRONTEND_002',
+      audit_id: 'AUDIT_FRONTEND_002',
+    }
+
+    vi.mocked(auditApi.getPresentation).mockImplementation(async (answerId) => (
+      answerId === 'ANSWER_FRONTEND_002'
+        ? refreshedPresentation
+        : stalePresentation
+    ))
+    vi.mocked(auditApi.revalidate).mockResolvedValue({
+      status: 'completed',
+      replayed: false,
+      idempotency_key: 'audit-ui-test-key-0001',
+      source_audit_id: 'AUDIT_FRONTEND_001',
+      source_answer_id: 'ANSWER_FRONTEND_001',
+      result_audit_id: 'AUDIT_FRONTEND_002',
+      result_answer_id: 'ANSWER_FRONTEND_002',
+      reason: 'Document changed.',
+      evidence_ids: ['EV_FRONTEND_001'],
+      change_ids: ['CHANGE_FRONTEND_001'],
+      completed_at: '2026-07-31T00:00:00Z',
+    })
+
+    render(<AuditPresentationPanel initialAnswerId="ANSWER_FRONTEND_001" />)
+
+    expect(await screen.findByText('outdated')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Reason'), {
+      target: { value: 'Document changed.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Revalidate answer' }))
+
+    expect(await screen.findByText('AUDIT_FRONTEND_002')).toBeInTheDocument()
+    expect(auditApi.revalidate).toHaveBeenCalledWith(
+      'ANSWER_FRONTEND_001',
+      expect.objectContaining({
+        source_audit_id: 'AUDIT_FRONTEND_001',
+        reason: 'Document changed.',
+        evidence_ids: ['EV_FRONTEND_001'],
+        change_ids: ['CHANGE_FRONTEND_001'],
+      }),
+    )
+    expect(await screen.findByText('ANSWER_FRONTEND_002')).toBeInTheDocument()
   })
 
   it('shows a safe error when the audit cannot be loaded', async () => {

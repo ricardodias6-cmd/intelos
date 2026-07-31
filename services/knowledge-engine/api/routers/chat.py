@@ -1,6 +1,7 @@
 import asyncio
 import traceback
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 from langchain_core.runnables import RunnableConfig
@@ -178,7 +179,8 @@ async def create_session(request: CreateSessionRequest):
 
 
 @router.get(
-    "/chat/sessions/{session_id}", response_model=ChatSessionWithMessagesResponse
+    "/chat/sessions/{session_id}",
+    response_model=ChatSessionWithMessagesResponse,
 )
 async def get_session(session_id: str):
     """Get a specific session with its messages."""
@@ -337,6 +339,10 @@ async def execute_chat(request: ExecuteChatRequest):
         state_values["context"] = request.context
         state_values["notebook"] = notebook
         state_values["model_override"] = model_override
+        state_values["audit_enabled"] = True
+        state_values["audit_conversation_id"] = full_session_id
+        state_values["audit_turn_id"] = f"TURN_{uuid4().hex.upper()}"
+        state_values["audit_response_mode"] = "detailed"
 
         # Add user message to state
         from langchain_core.messages import HumanMessage

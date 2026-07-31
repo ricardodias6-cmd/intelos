@@ -53,6 +53,8 @@ interface ChatPanelProps {
   notebookContextStats?: NotebookContextStats
   // Notebook ID for saving notes
   notebookId?: string
+  // Directly open the audit presentation for one AI answer
+  onOpenAudit?: (answerId: string) => void
 }
 
 export function ChatPanel({
@@ -72,7 +74,8 @@ export function ChatPanel({
   title,
   contextType = 'source',
   notebookContextStats,
-  notebookId
+  notebookId,
+  onOpenAudit,
 }: ChatPanelProps) {
   const { t } = useTranslation()
   const [sessionManagerOpen, setSessionManagerOpen] = useState(false)
@@ -158,6 +161,7 @@ export function ChatPanel({
                   key={message.id}
                   message={message}
                   notebookId={notebookId}
+                  onOpenAudit={onOpenAudit}
                   onReferenceClick={handleReferenceClick}
                 />
               ))
@@ -319,12 +323,14 @@ function ChatComposer({
 interface ChatMessageProps {
   message: SourceChatMessage
   notebookId?: string
+  onOpenAudit?: (answerId: string) => void
   onReferenceClick: (type: string, id: string) => void
 }
 
 const ChatMessage = memo(function ChatMessage({
   message,
   notebookId,
+  onOpenAudit,
   onReferenceClick
 }: ChatMessageProps) {
   return (
@@ -361,6 +367,8 @@ const ChatMessage = memo(function ChatMessage({
           <MessageActions
             content={message.content}
             notebookId={notebookId}
+            answerId={message.answer_id}
+            onOpenAudit={onOpenAudit}
           />
         )}
       </div>

@@ -158,6 +158,11 @@ export interface SourceChatMessage {
   type: 'human' | 'ai'
   content: string
   timestamp?: string
+  answer_id?: string
+  audit_report_id?: string
+  conversation_id?: string
+  turn_id?: string
+  audit_status?: string
 }
 
 export interface SourceChatContextIndicator {
@@ -205,6 +210,11 @@ export interface NotebookChatMessage {
   type: 'human' | 'ai'
   content: string
   timestamp?: string
+  answer_id?: string
+  audit_report_id?: string
+  conversation_id?: string
+  turn_id?: string
+  audit_status?: string
 }
 
 export interface NotebookChatSessionWithMessages extends NotebookChatSession {
