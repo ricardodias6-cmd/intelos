@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.audit import (
     AuditFreshness,
+    AuditOperationalSnapshot,
     AuditPresentation,
     AuditPresentationMode,
     AuditReport,
@@ -10,7 +11,6 @@ from open_notebook.audit import (
     AuditReportQuery,
     AuditRevalidationRequest,
     AuditRevalidationResult,
-    AuditOperationalSnapshot,
     get_audit_freshness,
     get_audit_presentation,
     get_audit_report,
