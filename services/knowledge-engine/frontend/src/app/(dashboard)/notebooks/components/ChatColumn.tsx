@@ -1,15 +1,17 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNotebookChat } from '@/lib/hooks/use-notebook-chat'
 import { useNotes } from '@/lib/hooks/use-notes'
 import { ChatPanel } from '@/components/sources/ChatPanel'
+import { AuditPresentationPanel } from '@/components/sources/AuditPresentationPanel'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { Card, CardContent } from '@/components/ui/card'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, MessageSquare, ShieldCheck } from 'lucide-react'
 import { ContextSelections } from '../[id]/page'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { SourceListResponse } from '@/lib/types/api'
+import { Button } from '@/components/ui/button'
 
 interface ChatColumnProps {
   notebookId: string
@@ -20,6 +22,7 @@ interface ChatColumnProps {
 
 export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoading }: ChatColumnProps) {
   const { t } = useTranslation()
+  const [activeView, setActiveView] = useState<'chat' | 'audit'>('chat')
 
   // Fetch notes for this notebook
   const { data: notes = [], isLoading: notesLoading } = useNotes(notebookId)
@@ -92,24 +95,57 @@ export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoad
   }
 
   return (
-    <ChatPanel
-      title={t('chat.chatWithNotebook')}
-      contextType="notebook"
-      messages={chat.messages}
-      isStreaming={chat.isSending}
-      contextIndicators={null}
-      onSendMessage={(message, modelOverride) => chat.sendMessage(message, modelOverride)}
-      modelOverride={chat.currentSession?.model_override ?? chat.pendingModelOverride ?? undefined}
-      onModelChange={(model) => chat.setModelOverride(model ?? null)}
-      sessions={chat.sessions}
-      currentSessionId={chat.currentSessionId}
-      onCreateSession={(title) => chat.createSession(title)}
-      onSelectSession={chat.switchSession}
-      onUpdateSession={(sessionId, title) => chat.updateSession(sessionId, { title })}
-      onDeleteSession={chat.deleteSession}
-      loadingSessions={chat.loadingSessions}
-      notebookContextStats={contextStats}
-      notebookId={notebookId}
-    />
+    <div className="h-full flex min-h-0 flex-col gap-2">
+      <div className="flex flex-shrink-0 gap-2" role="tablist" aria-label="Notebook workspace">
+        <Button
+          type="button"
+          size="sm"
+          variant={activeView === 'chat' ? 'default' : 'outline'}
+          role="tab"
+          aria-selected={activeView === 'chat'}
+          onClick={() => setActiveView('chat')}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Chat
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={activeView === 'audit' ? 'default' : 'outline'}
+          role="tab"
+          aria-selected={activeView === 'audit'}
+          onClick={() => setActiveView('audit')}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          Audit
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1">
+        {activeView === 'chat' ? (
+          <ChatPanel
+            title={t('chat.chatWithNotebook')}
+            contextType="notebook"
+            messages={chat.messages}
+            isStreaming={chat.isSending}
+            contextIndicators={null}
+            onSendMessage={(message, modelOverride) => chat.sendMessage(message, modelOverride)}
+            modelOverride={chat.currentSession?.model_override ?? chat.pendingModelOverride ?? undefined}
+            onModelChange={(model) => chat.setModelOverride(model ?? null)}
+            sessions={chat.sessions}
+            currentSessionId={chat.currentSessionId}
+            onCreateSession={(title) => chat.createSession(title)}
+            onSelectSession={chat.switchSession}
+            onUpdateSession={(sessionId, title) => chat.updateSession(sessionId, { title })}
+            onDeleteSession={chat.deleteSession}
+            loadingSessions={chat.loadingSessions}
+            notebookContextStats={contextStats}
+            notebookId={notebookId}
+          />
+        ) : (
+          <AuditPresentationPanel />
+        )}
+      </div>
+    </div>
   )
 }
