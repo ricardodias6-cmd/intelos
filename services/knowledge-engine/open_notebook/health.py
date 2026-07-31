@@ -23,8 +23,8 @@ class ReadinessResponse(BaseModel):
 async def check_readiness() -> ReadinessResponse:
     """Check database reachability without exposing connection details."""
 
-    migration_manager = AsyncMigrationManager()
     try:
+        migration_manager = AsyncMigrationManager()
         await migration_manager.ping()
     except Exception:
         record_operational_event(
