@@ -23,6 +23,7 @@ interface ChatColumnProps {
 export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoading }: ChatColumnProps) {
   const { t } = useTranslation()
   const [activeView, setActiveView] = useState<'chat' | 'audit'>('chat')
+  const [selectedAuditAnswerId, setSelectedAuditAnswerId] = useState<string | null>(null)
 
   // Fetch notes for this notebook
   const { data: notes = [], isLoading: notesLoading } = useNotes(notebookId)
@@ -77,6 +78,11 @@ export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoad
         </CardContent>
       </Card>
     )
+  }
+
+  const openAudit = (answerId: string) => {
+    setSelectedAuditAnswerId(answerId)
+    setActiveView('audit')
   }
 
   // Show error state if data fetch failed (unlikely but good to handle)
@@ -141,9 +147,13 @@ export function ChatColumn({ notebookId, contextSelections, sources, sourcesLoad
             loadingSessions={chat.loadingSessions}
             notebookContextStats={contextStats}
             notebookId={notebookId}
+            onOpenAudit={openAudit}
           />
         ) : (
-          <AuditPresentationPanel />
+          <AuditPresentationPanel
+            initialAnswerId={selectedAuditAnswerId ?? undefined}
+            conversationId={chat.currentSessionId ?? undefined}
+          />
         )}
       </div>
     </div>
