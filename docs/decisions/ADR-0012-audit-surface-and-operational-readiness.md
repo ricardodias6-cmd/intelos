@@ -63,6 +63,17 @@ A revalidação será uma operação explícita, autenticada no âmbito suportad
 
 Os estados possibly_outdated, outdated e unknown exigem revalidação. O estado unknown é fail-safe: não pode ser tratado como current.
 
+### Prontidão operacional
+
+A superfície operacional mínima é composta por:
+
+- GET /health/live, que confirma apenas que o processo está ativo;
+- GET /health/ready, que verifica a conectividade com a base de dados e devolve 503 quando o serviço não está pronto;
+- GET /api/evidence/operational, protegido pela autenticação normal da API, que devolve apenas contadores bounded e timestamp;
+- eventos de log estruturados com nomes, estados e durações limitados, sem texto documental, respostas, prompts, metadata ou detalhes brutos de exceções.
+
+Os contadores são process-local e destinam-se à operação local; a persistência de auditoria continua a ser a fonte de verdade dos relatórios.
+
 ### Invariantes de segurança
 
 - Leituras de auditoria não alteram respostas nem documentos.

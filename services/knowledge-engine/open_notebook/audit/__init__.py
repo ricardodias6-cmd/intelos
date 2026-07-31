@@ -36,11 +36,19 @@ from open_notebook.audit.revalidation import (
     persist_audit_revalidation,
     revalidate_audit_report,
 )
+from open_notebook.operational import (
+    AuditOperationalEvent,
+    AuditOperationalSnapshot,
+    get_operational_snapshot,
+    record_operational_event,
+)
 
 __all__ = [
     "AuditConflict",
     "AuditFreshness",
     "AuditFreshnessStatus",
+    "AuditOperationalEvent",
+    "AuditOperationalSnapshot",
     "AuditConflictSeverity",
     "AuditEvidenceDecision",
     "AuditEvidenceDecisionType",
@@ -63,8 +71,10 @@ __all__ = [
     "get_audit_report",
     "get_audit_report_by_id",
     "get_audit_revalidation",
+    "get_operational_snapshot",
     "list_audit_reports",
     "persist_audit_report",
     "persist_audit_revalidation",
+    "record_operational_event",
     "revalidate_audit_report",
 ]

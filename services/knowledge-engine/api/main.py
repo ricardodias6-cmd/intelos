@@ -61,6 +61,7 @@ from open_notebook.exceptions import (
     RateLimitError,
     UnsupportedTypeException,
 )
+from open_notebook.health import ReadinessResponse, check_readiness
 from open_notebook.utils.encryption import get_secret_from_env
 
 
@@ -242,6 +243,8 @@ app.add_middleware(
     excluded_paths=[
         "/",
         "/health",
+        "/health/live",
+        "/health/ready",
         "/docs",
         "/openapi.json",
         "/redoc",
@@ -420,3 +423,22 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+@app.get("/health/live")
+async def liveness():
+    """Report process liveness without touching dependencies."""
+
+    return {"status": "alive"}
+
+
+@app.get("/health/ready", response_model=ReadinessResponse)
+async def readiness():
+    """Report dependency readiness without exposing connection details."""
+
+    result = await check_readiness()
+    if result.status == "not_ready":
+        return JSONResponse(
+            status_code=503,
+            content=result.model_dump(mode="json"),
+        )
+    return result
