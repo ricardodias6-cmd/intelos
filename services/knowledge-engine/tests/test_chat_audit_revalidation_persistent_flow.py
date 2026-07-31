@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from api.routers._chat_shared import extract_chat_messages
@@ -14,7 +15,6 @@ from open_notebook.audit import (
     AuditFreshnessStatus,
     AuditPresentationMode,
     AuditRevalidationRequest,
-    build_audit_presentation,
     get_audit_presentation,
     revalidate_audit_report,
 )
@@ -102,15 +102,6 @@ class _StructuredModel:
 
     async def ainvoke(self, prompt: str) -> CandidateAnswer:
         return self.candidates.pop(0)
-
-
-class _LanguageModel:
-    def __init__(self, candidates: list[CandidateAnswer]) -> None:
-        self.candidates = candidates
-
-    def with_structured_output(self, schema: Any) -> _StructuredModel:
-        assert schema is CandidateAnswer
-        return _StructuredModel(self._candidates)
 
 
 class _Provider:
@@ -221,7 +212,7 @@ async def test_chat_audit_revalidation_persists_full_flow(
     result = chat.call_model_with_messages(
         {
             "messages": [
-                {"type": "human", "content": "Quem decide?"},
+                HumanMessage(content="Quem decide?"),
             ],
             "notebook": None,
             "context": {
