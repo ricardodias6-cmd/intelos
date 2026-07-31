@@ -81,7 +81,7 @@ describe('AuditPresentationPanel', () => {
     })
 
     expect(await screen.findByTestId('audit-presentation')).toBeInTheDocument()
-    expect(screen.getByText('A entidade competente decide.')).toBeInTheDocument()
+    expect(screen.getAllByText('A entidade competente decide.')).toHaveLength(2)
     expect(screen.queryByText('metadata')).not.toBeInTheDocument()
   })
 
