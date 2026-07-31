@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Save, Copy, Loader2, Check } from 'lucide-react'
+import { Save, Copy, Loader2, Check, ShieldCheck } from 'lucide-react'
 import { useCreateNote } from '@/lib/hooks/use-notes'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/hooks/use-translation'
@@ -11,9 +11,16 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 interface MessageActionsProps {
   content: string
   notebookId?: string
+  answerId?: string
+  onOpenAudit?: (answerId: string) => void
 }
 
-export function MessageActions({ content, notebookId }: MessageActionsProps) {
+export function MessageActions({
+  content,
+  notebookId,
+  answerId,
+  onOpenAudit,
+}: MessageActionsProps) {
   const { t } = useTranslation()
   const [copySuccess, setCopySuccess] = useState(false)
   const createNote = useCreateNote()
@@ -90,6 +97,24 @@ export function MessageActions({ content, notebookId }: MessageActionsProps) {
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('common.saveToNote')}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {answerId && onOpenAudit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                aria-label="Open audit"
+                onClick={() => onOpenAudit(answerId)}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Open audit</p>
             </TooltipContent>
           </Tooltip>
         )}
