@@ -187,6 +187,7 @@ async def get_source_chat_sessions(source_id: str = Path(..., description="Sourc
 @router.get(
     "/sources/{source_id}/chat/sessions/{session_id}",
     response_model=SourceChatSessionWithMessagesResponse,
+    response_model_exclude_none=True,
 )
 async def get_source_chat_session(
     source_id: str = Path(..., description="Source ID"),
