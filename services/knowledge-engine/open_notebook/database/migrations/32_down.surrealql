@@ -1,0 +1,5 @@
+-- Rollback Migration 32: remove durable audit revalidation records
+
+REMOVE INDEX IF EXISTS idx_audit_revalidation_source ON TABLE audit_revalidation;
+REMOVE INDEX IF EXISTS idx_audit_revalidation_key ON TABLE audit_revalidation;
+REMOVE TABLE IF EXISTS audit_revalidation;

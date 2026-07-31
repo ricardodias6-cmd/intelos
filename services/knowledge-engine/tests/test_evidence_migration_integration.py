@@ -33,7 +33,7 @@ pytestmark = pytest.mark.skipif(
     ),
 )
 
-LATEST_MIGRATION = 31
+LATEST_MIGRATION = 32
 EVIDENCE_TABLES = {
     "document_version",
     "evidence_block",
@@ -60,6 +60,9 @@ VERSIONING_TABLES = {
 }
 REPROCESSING_TABLES = {
     "document_reprocessing_request",
+}
+REVALIDATION_TABLES = {
+    "audit_revalidation",
 }
 COPILOT_TABLES = {
     "copilot_conversation_turn",
@@ -164,6 +167,16 @@ def _assert_copilot_schema_absent(schema: str) -> None:
         assert table not in schema
 
 
+def _assert_revalidation_schema_present(schema: str) -> None:
+    for table in REVALIDATION_TABLES:
+        assert table in schema
+
+
+def _assert_revalidation_schema_absent(schema: str) -> None:
+    for table in REVALIDATION_TABLES:
+        assert table not in schema
+
+
 def _assert_retrieval_schema_present(table_schema: str) -> None:
     for marker in RETRIEVAL_FIELDS | RETRIEVAL_INDEXES:
         assert marker in table_schema
@@ -232,6 +245,7 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     _assert_versioning_schema_present(await _database_schema())
     _assert_reprocessing_schema_present(await _database_schema())
     _assert_copilot_schema_present(await _database_schema())
+    _assert_revalidation_schema_present(await _database_schema())
 
     await repo_query(
         "CREATE source:evidence_test SET title = 'Evidence migration integration';"
@@ -319,6 +333,11 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     assert await repo_query("SELECT * FROM evidence_block;") == []
 
     await manager.runner.run_one_down()
+    assert await manager.get_current_version() == 31
+    _assert_revalidation_schema_absent(await _database_schema())
+    _assert_audit_report_fields_present(await _audit_table_schema())
+
+    await manager.runner.run_one_down()
     assert await manager.get_current_version() == 30
     _assert_audit_schema_present(await _database_schema())
     _assert_audit_report_fields_absent(await _audit_table_schema())
@@ -403,6 +422,11 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     _assert_audit_report_fields_absent(await _audit_table_schema())
 
     await manager.runner.run_one_up()
+    assert await manager.get_current_version() == 31
+    _assert_audit_report_fields_present(await _audit_table_schema())
+    _assert_revalidation_schema_absent(await _database_schema())
+
+    await manager.runner.run_one_up()
     assert await manager.get_current_version() == LATEST_MIGRATION
     assert not await manager.needs_migration()
     _assert_evidence_schema_present(await _database_schema())
@@ -413,3 +437,4 @@ async def test_evidence_migrations_up_down_and_reapply_against_real_surrealdb() 
     _assert_versioning_schema_present(await _database_schema())
     _assert_reprocessing_schema_present(await _database_schema())
     _assert_copilot_schema_present(await _database_schema())
+    _assert_revalidation_schema_present(await _database_schema())

@@ -85,6 +85,16 @@ class _FileAuditStore:
         )
         self._write(data)
 
+    async def claim_revalidation(self, record: Any) -> None:
+        from open_notebook.exceptions import InvalidInputError
+
+        data = self._read()
+        if f"revalidation:{record.idempotency_key}" in data:
+            raise InvalidInputError(
+                "revalidation is already registered for this idempotency key"
+            )
+        await self.persist_revalidation(record)
+
     def reports(self) -> list[Any]:
         from open_notebook.audit.models import AuditReport
 
@@ -197,6 +207,11 @@ async def test_chat_audit_revalidation_persists_full_flow(
         audit_revalidation,
         "persist_audit_revalidation",
         store.persist_revalidation,
+    )
+    monkeypatch.setattr(
+        audit_revalidation,
+        "claim_audit_revalidation",
+        store.claim_revalidation,
     )
 
     async def get_report_for_presentation(answer_id: str) -> Any:
