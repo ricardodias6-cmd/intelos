@@ -4,10 +4,6 @@ from typing import Annotated, Optional
 
 from ai_prompter import Prompter
 from langchain_core.messages import AIMessage, SystemMessage
-from open_notebook.evidence.auditable_answer import (
-    AuditableAnswerRequest,
-    build_auditable_answer,
-)
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -17,6 +13,10 @@ from typing_extensions import TypedDict
 from open_notebook.ai.provision import provision_langchain_model
 from open_notebook.config import LANGGRAPH_CHECKPOINT_FILE
 from open_notebook.domain.notebook import Notebook
+from open_notebook.evidence.auditable_answer import (
+    AuditableAnswerRequest,
+    build_auditable_answer,
+)
 from open_notebook.exceptions import OpenNotebookError
 from open_notebook.utils import clean_thinking_content
 from open_notebook.utils.error_classifier import classify_error
