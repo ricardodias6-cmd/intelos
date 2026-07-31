@@ -532,3 +532,175 @@ async def test_answer_persists_audit_report_with_evidence_decisions(
     assert report.audit_id == result.audit_report_id
     assert report.rejected_evidence_ids == ["EV_TWO"]
     assert report.selected_evidence_ids == ["EV_ONE"]
+
+
+@pytest.mark.asyncio
+async def test_quote_without_literal_match_is_not_presented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Semantic similarity alone cannot promote a quote to a presented fact."""
+
+    candidate = CandidateAnswer(
+        answer="A autorização compete à entidade competente.",
+        claims=[
+            CandidateClaim(
+                text="A autorização compete à entidade competente.",
+                kind=ClaimKind.QUOTE,
+                evidence_ids=["EV_ONE"],
+            )
+        ],
+    )
+
+    async def fake_retrieve(**kwargs: Any) -> EvidenceSearchResponse:
+        return _retrieval(_hit())
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _LanguageModel:
+        return _LanguageModel(candidate)
+
+    async def fake_validate(**kwargs: Any) -> SemanticValidationResult:
+        # High semantic support, but the wording is not literally in the block.
+        return _validation(SupportStatus.DIRECT, confidence=0.95)
+
+    monkeypatch.setattr(auditable_answer, "retrieve_evidence", fake_retrieve)
+    monkeypatch.setattr(
+        auditable_answer,
+        "provision_langchain_model",
+        fake_provision,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "validate_claim_semantics",
+        fake_validate,
+    )
+
+    result = await build_auditable_answer(
+        AuditableAnswerRequest(question="Quem decide?", regeneration_attempts=0)
+    )
+
+    assert result.status == "insufficient_evidence"
+    assert result.claims[0].support_status == SupportStatus.UNSUPPORTED
+    assert "literalmente" in (result.claims[0].qualification or "")
+    assert result.requires_human_review is True
+
+
+@pytest.mark.asyncio
+async def test_unusable_evidence_does_not_discard_the_whole_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from open_notebook.exceptions import InvalidInputError
+
+    candidate = CandidateAnswer(
+        answer="A autorização compete à entidade competente.",
+        claims=[
+            CandidateClaim(
+                text="Afirmação sobre evidência inutilizável.",
+                evidence_ids=["EV_ONE"],
+            ),
+            CandidateClaim(
+                text="A autorização compete à entidade competente.",
+                evidence_ids=["EV_TWO"],
+            ),
+        ],
+    )
+
+    async def fake_retrieve(**kwargs: Any) -> EvidenceSearchResponse:
+        return _retrieval(_hit("EV_ONE"), _hit("EV_TWO"))
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _LanguageModel:
+        return _LanguageModel(candidate)
+
+    async def fake_validate(**kwargs: Any) -> SemanticValidationResult:
+        if kwargs["evidence_ids"] == ["EV_ONE"]:
+            raise InvalidInputError("Rejected evidence cannot be used: EV_ONE")
+        return _validation(SupportStatus.DIRECT, confidence=0.91)
+
+    monkeypatch.setattr(auditable_answer, "retrieve_evidence", fake_retrieve)
+    monkeypatch.setattr(
+        auditable_answer,
+        "provision_langchain_model",
+        fake_provision,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "validate_claim_semantics",
+        fake_validate,
+    )
+
+    result = await build_auditable_answer(
+        AuditableAnswerRequest(question="Quem decide?", regeneration_attempts=0)
+    )
+
+    assert result.status == "answered"
+    presented = [claim for claim in result.claims if claim.is_presentable_fact]
+    assert [claim.text for claim in presented] == [
+        "A autorização compete à entidade competente."
+    ]
+    dropped = [claim for claim in result.claims if not claim.is_presentable_fact]
+    assert "não pôde ser validada" in (dropped[0].qualification or "")
+    # The unusable block keeps no citation, since no claim stands on it.
+    assert [citation.evidence_id for citation in result.citations] == ["EV_TWO"]
+
+
+@pytest.mark.asyncio
+async def test_graph_expansion_gets_a_reserved_share_of_the_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retrieval leaves room for the graph instead of filling max_evidence."""
+
+    limits: list[int] = []
+
+    candidate = CandidateAnswer(
+        answer="A autorização compete à entidade competente.",
+        claims=[
+            CandidateClaim(
+                text="A autorização compete à entidade competente.",
+                evidence_ids=["EV_ONE"],
+            )
+        ],
+    )
+
+    async def fake_retrieve(**kwargs: Any) -> EvidenceSearchResponse:
+        limits.append(kwargs["limit"])
+        return _retrieval(_hit("EV_ONE"))
+
+    async def fake_expand(**kwargs: Any) -> Any:
+        from open_notebook.knowledge_graph.expansion import KnowledgeGraphExpansion
+
+        assert kwargs["max_evidence"] == 8
+        return KnowledgeGraphExpansion(
+            seed_evidence_ids=list(kwargs["evidence_ids"]),
+            entity_ids=["ENT_ONE"],
+            related_evidence_ids=["EV_GRAPH"],
+            extra_hits=[_hit("EV_GRAPH")],
+        )
+
+    async def fake_provision(*args: Any, **kwargs: Any) -> _LanguageModel:
+        return _LanguageModel(candidate)
+
+    async def fake_validate(**kwargs: Any) -> SemanticValidationResult:
+        return _validation(SupportStatus.DIRECT, confidence=0.91)
+
+    monkeypatch.setattr(auditable_answer, "retrieve_evidence", fake_retrieve)
+    monkeypatch.setattr(auditable_answer, "expand_knowledge_graph", fake_expand)
+    monkeypatch.setattr(
+        auditable_answer,
+        "provision_langchain_model",
+        fake_provision,
+    )
+    monkeypatch.setattr(
+        auditable_answer,
+        "validate_claim_semantics",
+        fake_validate,
+    )
+
+    result = await build_auditable_answer(
+        AuditableAnswerRequest(
+            question="Quem decide?",
+            max_evidence=8,
+            include_knowledge_graph=True,
+            regeneration_attempts=0,
+        )
+    )
+
+    assert limits == [6]
+    assert "EV_GRAPH" in result.audit.selected_evidence_ids
