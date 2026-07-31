@@ -16,6 +16,7 @@ import type {
   AuditHistoryItem,
   AuditPresentation,
   AuditPresentationMode,
+  AuditFreshnessStatus,
   AuditRevalidationResult,
 } from '@/lib/types/audit'
 import { Badge } from '@/components/ui/badge'
@@ -518,7 +519,7 @@ function AuditHistoryPanel({
 }) {
   const [items, setItems] = useState<AuditHistoryItem[]>([])
   const [turnId, setTurnId] = useState('')
-  const [freshness, setFreshness] = useState('')
+  const [freshness, setFreshness] = useState<AuditFreshnessStatus | ''>('')
   const [offset, setOffset] = useState(0)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
