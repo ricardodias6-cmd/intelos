@@ -61,7 +61,7 @@ on:
       - services/knowledge-engine/tests/test_audit_query.py
       - services/knowledge-engine/tests/test_audit_presentation.py
       - services/knowledge-engine/tests/test_audit_revalidation.py
-      tests/test_operational_readiness.py
+      - services/knowledge-engine/tests/test_operational_readiness.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -168,7 +168,7 @@ jobs:
           tests/test_audit_query.py
           tests/test_audit_presentation.py
           tests/test_audit_revalidation.py
-      tests/test_operational_readiness.py
+      - services/knowledge-engine/tests/test_operational_readiness.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -190,7 +190,7 @@ jobs:
           tests/test_audit_query.py
           tests/test_audit_presentation.py
           tests/test_audit_revalidation.py
-      tests/test_operational_readiness.py
+      - services/knowledge-engine/tests/test_operational_readiness.py
 
   migration-integration:
     needs: test
