@@ -97,6 +97,75 @@ def call_model_with_messages(state: ThreadState, config: RunnableConfig) -> dict
         raise error_class(user_message) from e
 
 
+def _call_auditable_model(state: ThreadState) -> dict:
+    human_messages = [
+        message
+        for message in state.get("messages", [])
+        if getattr(message, "type", None) == "human"
+    ]
+    if not human_messages:
+        raise OpenNotebookError("Auditable chat requires a human question")
+
+    question = str(human_messages[-1].content).strip()
+    conversation_id = state.get("audit_conversation_id")
+    turn_id = state.get("audit_turn_id")
+    response_mode = state.get("audit_response_mode") or "detailed"
+    if not conversation_id or not turn_id:
+        raise OpenNotebookError(
+            "Auditable chat requires conversation and turn identifiers"
+        )
+
+    conversation_context = [
+        str(message.content)
+        for message in state.get("messages", [])[-7:-1]
+        if getattr(message, "content", None)
+    ]
+    request = AuditableAnswerRequest(
+        question=question,
+        conversation_id=conversation_id,
+        turn_id=turn_id,
+        response_mode=response_mode,
+        conversation_context=conversation_context,
+    )
+
+    def run_answer():
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(build_auditable_answer(request))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    try:
+        asyncio.get_running_loop()
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            answer = executor.submit(run_answer).result()
+    except RuntimeError:
+        answer = asyncio.run(build_auditable_answer(request))
+
+    if not answer.answer_id or not answer.audit_report_id:
+        raise OpenNotebookError(
+            "Auditable chat did not produce stable audit identifiers"
+        )
+
+    return {
+        "messages": AIMessage(
+            id=answer.answer_id,
+            content=answer.answer,
+            additional_kwargs={
+                "answer_id": answer.answer_id,
+                "audit_report_id": answer.audit_report_id,
+                "conversation_id": conversation_id,
+                "turn_id": turn_id,
+                "audit_status": answer.status.value,
+            },
+        )
+    }
+
+
 conn = sqlite3.connect(
     LANGGRAPH_CHECKPOINT_FILE,
     check_same_thread=False,
