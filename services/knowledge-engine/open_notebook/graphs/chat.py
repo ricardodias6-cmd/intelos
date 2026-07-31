@@ -26,7 +26,7 @@ from open_notebook.utils.text_utils import extract_text_content
 class ThreadState(TypedDict):
     messages: Annotated[list, add_messages]
     notebook: Optional[Notebook]
-    context: Optional[str]
+    context: Optional[dict]
     context_config: Optional[dict]
     model_override: Optional[str]
     audit_enabled: Optional[bool]
@@ -96,6 +96,20 @@ def call_model_with_messages(state: ThreadState, config: RunnableConfig) -> dict
         raise error_class(user_message) from e
 
 
+def _selected_source_ids(context: Optional[dict]) -> list[str]:
+    if not isinstance(context, dict):
+        return []
+
+    source_ids: list[str] = []
+    for source in context.get("sources", []):
+        if not isinstance(source, dict) or not source.get("id"):
+            continue
+        source_id = str(source["id"])
+        if source_id not in source_ids:
+            source_ids.append(source_id)
+    return source_ids
+
+
 def _call_auditable_model(state: ThreadState) -> dict:
     human_messages = [
         message
@@ -124,6 +138,7 @@ def _call_auditable_model(state: ThreadState) -> dict:
         conversation_id=conversation_id,
         turn_id=turn_id,
         response_mode=response_mode,
+        source_ids=_selected_source_ids(state.get("context")),
         conversation_context=conversation_context,
     )
 
