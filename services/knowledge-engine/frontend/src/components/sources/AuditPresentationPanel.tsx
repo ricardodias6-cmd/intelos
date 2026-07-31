@@ -124,9 +124,9 @@ export function AuditPresentationPanel({
       const affectedEvidence = new Set(
         presentation.freshness.affected_evidence_ids,
       )
-      const evidenceIds = presentation.evidence_decisions
-        .filter((decision) => affectedEvidence.has(decision.evidence_id))
-        .map((decision) => decision.evidence_id)
+      const evidenceIds = presentation.freshness.affected_evidence_ids.filter(
+        (evidenceId) => affectedEvidence.has(evidenceId),
+      )
 
       const result = await auditApi.revalidate(presentation.answer_id, {
         source_audit_id: presentation.audit_id,
