@@ -167,3 +167,45 @@ async def test_audit_query_endpoint_returns_page(
     assert body["items"] == []
     assert body["limit"] == 5
     assert body["has_more"] is False
+
+@pytest.mark.asyncio
+async def test_truncated_scan_still_exposes_a_usable_next_offset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A truncated scan must not leave the client without a way to page on."""
+
+    rows = [
+        _report(
+            f"ANSWER_QUERY_{index:04d}",
+            datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
+        ).model_dump(mode="python")
+        for index in range(1000)
+    ]
+    refreshed: list[str] = []
+
+    async def fake_query(
+        query: str,
+        variables: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        return rows
+
+    async def fake_freshness(evidence_ids: list[str]) -> AuditFreshness:
+        refreshed.append("call")
+        return AuditFreshness(status=AuditFreshnessStatus.CURRENT)
+
+    monkeypatch.setattr("open_notebook.audit.persistence.repo_query", fake_query)
+    monkeypatch.setattr(
+        "open_notebook.audit.persistence.evaluate_audit_freshness",
+        fake_freshness,
+    )
+
+    page = await list_audit_reports(
+        AuditReportQuery(conversation_id="CONV_QUERY_001", limit=20)
+    )
+
+    assert page.scan_truncated is True
+    assert page.has_more is True
+    assert page.next_offset == 20
+    assert len(page.items) == 20
+    # Freshness is evaluated for the returned page only, not the whole scan.
+    assert len(refreshed) == 20
