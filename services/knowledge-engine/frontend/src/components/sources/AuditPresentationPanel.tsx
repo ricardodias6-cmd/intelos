@@ -585,7 +585,9 @@ function AuditHistoryPanel({
                 aria-label="Freshness filter"
                 className="h-9 rounded-md border bg-popover px-3 text-sm"
                 value={freshness}
-                onChange={(event) => setFreshness(event.target.value)}
+                onChange={(event) =>
+                  setFreshness(event.target.value as AuditFreshnessStatus | '')
+                }
               >
                 <option value="">All freshness</option>
                 <option value="current">Current</option>
