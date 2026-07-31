@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import {
   AlertCircle,
   ArrowRight,
@@ -524,7 +524,7 @@ function AuditHistoryPanel({
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
 
-  const loadHistory = async (next: number = 0) => {
+  const loadHistory = useCallback(async (next: number = 0) => {
     if (!conversationId) {
       setItems([])
       setNextOffset(null)
@@ -549,12 +549,12 @@ function AuditHistoryPanel({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [conversationId, freshness, turnId])
 
   useEffect(() => {
     setOffset(0)
     void loadHistory(0)
-  }, [conversationId])
+  }, [conversationId, loadHistory])
 
   return (
     <Card>
