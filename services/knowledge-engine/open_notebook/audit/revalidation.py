@@ -19,6 +19,10 @@ from open_notebook.database.repository import (
     repo_upsert,
 )
 from open_notebook.exceptions import InvalidInputError
+from open_notebook.operational import (
+    AuditOperationalEvent,
+    record_operational_event,
+)
 
 
 class AuditRevalidationStatus(StrEnum):
@@ -257,6 +261,9 @@ async def revalidate_audit_report(
                 "idempotency key was already used with different parameters"
             )
         if existing.status == AuditRevalidationStatus.COMPLETED:
+            record_operational_event(
+                AuditOperationalEvent.AUDIT_REVALIDATION_REPLAYED
+            )
             return _result_from_record(existing, replayed=True)
         raise InvalidInputError(
             f"revalidation is already {existing.status.value}"
@@ -273,6 +280,9 @@ async def revalidate_audit_report(
         status=AuditRevalidationStatus.PROCESSING,
     )
     await persist_audit_revalidation(processing)
+    record_operational_event(
+        AuditOperationalEvent.AUDIT_REVALIDATION_STARTED
+    )
 
     try:
         from open_notebook.evidence.auditable_answer import build_auditable_answer
@@ -304,8 +314,15 @@ async def revalidate_audit_report(
             }
         )
         await persist_audit_revalidation(completed)
+        record_operational_event(
+            AuditOperationalEvent.AUDIT_REVALIDATION_COMPLETED
+        )
         return _result_from_record(completed, replayed=False)
     except Exception:
+        record_operational_event(
+            AuditOperationalEvent.AUDIT_REVALIDATION_FAILED,
+            status="failed",
+        )
         failed = processing.model_copy(
             update={"status": AuditRevalidationStatus.FAILED}
         )
