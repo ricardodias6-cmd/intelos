@@ -24,6 +24,10 @@ from open_notebook.database.repository import (
     repo_upsert,
 )
 from open_notebook.exceptions import InvalidInputError, NotFoundError
+from open_notebook.operational import (
+    AuditOperationalEvent,
+    record_operational_event,
+)
 
 
 def _stable_edge_id(audit_id: str, evidence_id: str, decision: str) -> str:
@@ -83,6 +87,9 @@ async def persist_audit_report(
             ),
         )
 
+    record_operational_event(
+        AuditOperationalEvent.AUDIT_REPORT_PERSISTED
+    )
     return AuditReportPersistenceResult(
         audit_id=report.audit_id,
         answer_id=report.answer_id,
