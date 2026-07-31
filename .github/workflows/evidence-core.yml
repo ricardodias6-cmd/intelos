@@ -17,6 +17,7 @@ on:
       - agent/phase-10-1-audit-query-contract
       - agent/phase-10-2-audit-presentation
       - agent/phase-10-3-controlled-revalidation
+      - agent/phase-10-4-operational-readiness
     paths:
       - .github/workflows/evidence-core.yml
       - services/knowledge-engine/api/main.py
@@ -60,6 +61,7 @@ on:
       - services/knowledge-engine/tests/test_audit_query.py
       - services/knowledge-engine/tests/test_audit_presentation.py
       - services/knowledge-engine/tests/test_audit_revalidation.py
+      tests/test_operational_readiness.py
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
@@ -166,6 +168,7 @@ jobs:
           tests/test_audit_query.py
           tests/test_audit_presentation.py
           tests/test_audit_revalidation.py
+      tests/test_operational_readiness.py
 
       - name: Run Evidence Core unit tests
         run: >-
@@ -187,6 +190,7 @@ jobs:
           tests/test_audit_query.py
           tests/test_audit_presentation.py
           tests/test_audit_revalidation.py
+      tests/test_operational_readiness.py
 
   migration-integration:
     needs: test
