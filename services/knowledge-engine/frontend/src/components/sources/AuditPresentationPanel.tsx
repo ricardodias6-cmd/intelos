@@ -179,6 +179,15 @@ function AuditPresentationContent({
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Badge variant="outline">
+          Selected evidence: {presentation.counts.selected_evidence}
+        </Badge>
+        <Badge variant="outline">
+          Rejected evidence: {presentation.counts.rejected_evidence}
+        </Badge>
+      </div>
+
       <div className="rounded-md border p-3">
         <div className="text-xs text-muted-foreground">Answer</div>
         <p className="mt-1 whitespace-pre-wrap text-sm">{presentation.answer}</p>
