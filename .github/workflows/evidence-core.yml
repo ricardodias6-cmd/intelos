@@ -3,104 +3,47 @@ name: Evidence Core
 on:
   push:
     branches:
-      - agent/evidence-core-foundation
-      - agent/phase-2
-      - agent/phase-3
-      - agent/phase-4
-      - agent/phase-6
-      - agent/phase-7
-      - agent/phase-8
-      - agent/phase-8-maintenance
-      - agent/phase-9
-      - agent/phase-9-clarification
-      - agent/phase-9-audit-freshness
-      - agent/phase-10-1-audit-query-contract
-      - agent/phase-10-2-audit-presentation
-      - agent/phase-10-3-controlled-revalidation
-      - agent/phase-10-4-operational-readiness
+      - main
+      - "agent/**"
+      - "fix/**"
     paths:
       - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/pyproject.toml
+      - services/knowledge-engine/uv.lock
       - services/knowledge-engine/api/main.py
-      - services/knowledge-engine/api/routers/evidence.py
-      - services/knowledge-engine/api/routers/copilot.py
-      - services/knowledge-engine/api/routers/knowledge_graph.py
-      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/api/routers/**
+      - services/knowledge-engine/open_notebook/audit/**
       - services/knowledge-engine/open_notebook/copilot/**
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/graphs/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
-      - services/knowledge-engine/open_notebook/knowledge_graph/**
-      - services/knowledge-engine/open_notebook/audit/**
-      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/health.py
+      - services/knowledge-engine/open_notebook/operational.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
-      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/31*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/29*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/30*.surrealql
-      - services/knowledge-engine/tests/test_evidence_core.py
-      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
-      - services/knowledge-engine/tests/test_evidence_migration_integration.py
-      - services/knowledge-engine/tests/test_document_versioning.py
-      - services/knowledge-engine/tests/test_evidence_retrieval.py
-      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
-      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
-      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
-      - services/knowledge-engine/tests/test_auditable_answer_models.py
-      - services/knowledge-engine/tests/test_auditable_answer.py
-      - services/knowledge-engine/tests/test_evidence_answer_api.py
-      - services/knowledge-engine/tests/test_copilot_api.py
-      - services/knowledge-engine/tests/test_copilot_clarification.py
-      - services/knowledge-engine/tests/test_knowledge_graph.py
-      - services/knowledge-engine/tests/test_audit_report.py
-      - services/knowledge-engine/tests/test_audit_freshness.py
-      - services/knowledge-engine/tests/test_audit_query.py
-      - services/knowledge-engine/tests/test_audit_presentation.py
-      - services/knowledge-engine/tests/test_audit_revalidation.py
-      - services/knowledge-engine/tests/test_operational_readiness.py
+      - services/knowledge-engine/open_notebook/database/migrations/**
+      - services/knowledge-engine/tests/**
   pull_request:
     paths:
       - .github/workflows/evidence-core.yml
+      - services/knowledge-engine/pyproject.toml
+      - services/knowledge-engine/uv.lock
       - services/knowledge-engine/api/main.py
-      - services/knowledge-engine/api/routers/evidence.py
-      - services/knowledge-engine/api/routers/copilot.py
-      - services/knowledge-engine/api/routers/knowledge_graph.py
-      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/api/routers/**
+      - services/knowledge-engine/open_notebook/audit/**
       - services/knowledge-engine/open_notebook/copilot/**
+      - services/knowledge-engine/open_notebook/evidence/**
+      - services/knowledge-engine/open_notebook/knowledge_graph/**
+      - services/knowledge-engine/open_notebook/graphs/**
       - services/knowledge-engine/open_notebook/domain/evidence.py
       - services/knowledge-engine/open_notebook/domain/knowledge_graph.py
-      - services/knowledge-engine/open_notebook/knowledge_graph/**
-      - services/knowledge-engine/open_notebook/audit/**
-      - services/knowledge-engine/open_notebook/graphs/source.py
+      - services/knowledge-engine/open_notebook/health.py
+      - services/knowledge-engine/open_notebook/operational.py
       - services/knowledge-engine/open_notebook/database/async_migrate.py
-      - services/knowledge-engine/open_notebook/database/migrations/24*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/25*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/26*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/27*.surrealql
-      - services/knowledge-engine/open_notebook/database/migrations/28*.surrealql
-      - services/knowledge-engine/tests/test_evidence_core.py
-      - services/knowledge-engine/tests/test_docling_evidence_adapter.py
-      - services/knowledge-engine/tests/test_evidence_migration_integration.py
-      - services/knowledge-engine/tests/test_document_versioning.py
-      - services/knowledge-engine/tests/test_evidence_retrieval.py
-      - services/knowledge-engine/tests/test_evidence_retrieval_integration.py
-      - services/knowledge-engine/tests/test_evidence_semantic_validation.py
-      - services/knowledge-engine/tests/test_evidence_semantic_validation_regressions.py
-      - services/knowledge-engine/tests/test_auditable_answer_models.py
-      - services/knowledge-engine/tests/test_auditable_answer.py
-      - services/knowledge-engine/tests/test_evidence_answer_api.py
-      - services/knowledge-engine/tests/test_copilot_api.py
-      - services/knowledge-engine/tests/test_knowledge_graph_expansion.py
-      - services/knowledge-engine/tests/test_copilot_persistence.py
-      - services/knowledge-engine/tests/test_knowledge_graph.py
-      - services/knowledge-engine/tests/test_audit_report.py
-      - services/knowledge-engine/tests/test_audit_freshness.py
-      - services/knowledge-engine/tests/test_audit_query.py
-      - services/knowledge-engine/tests/test_audit_presentation.py
+      - services/knowledge-engine/open_notebook/database/migrations/**
+      - services/knowledge-engine/tests/**
+  workflow_dispatch:
 
 concurrency:
   group: evidence-core-${{ github.ref }}
@@ -135,62 +78,13 @@ jobs:
         run: uv sync --frozen --group dev
 
       - name: Lint Evidence Core
-        run: >-
-          uv run ruff check
-          api/main.py
-          api/routers/evidence.py
-          api/routers/copilot.py
-          api/routers/knowledge_graph.py
-          open_notebook/evidence
-          open_notebook/domain/evidence.py
-          open_notebook/domain/knowledge_graph.py
-          open_notebook/knowledge_graph
-          open_notebook/audit
-          open_notebook/graphs/source.py
-          open_notebook/database/async_migrate.py
-          tests/test_evidence_core.py
-          tests/test_docling_evidence_adapter.py
-          tests/test_evidence_migration_integration.py
-          tests/test_document_versioning.py
-          tests/test_evidence_retrieval.py
-          tests/test_evidence_retrieval_integration.py
-          tests/test_evidence_semantic_validation.py
-          tests/test_evidence_semantic_validation_regressions.py
-          tests/test_auditable_answer_models.py
-          tests/test_auditable_answer.py
-          tests/test_evidence_answer_api.py
-          tests/test_copilot_api.py
-          tests/test_copilot_clarification.py
-          tests/test_copilot_persistence.py
-          tests/test_knowledge_graph_expansion.py
-          tests/test_knowledge_graph.py
-          tests/test_audit_freshness.py
-          tests/test_audit_query.py
-          tests/test_audit_presentation.py
-          tests/test_audit_revalidation.py
-          tests/test_operational_readiness.py
+        run: uv run ruff check api open_notebook tests
 
+      # The whole suite runs so a new test file can never be silently left
+      # out of CI. The SurrealDB integration tests skip themselves unless
+      # INTELOS_RUN_SURREAL_INTEGRATION is set, and run in the job below.
       - name: Run Evidence Core unit tests
-        run: >-
-          uv run pytest
-          tests/test_evidence_core.py
-          tests/test_docling_evidence_adapter.py
-          tests/test_document_versioning.py
-          tests/test_evidence_retrieval.py
-          tests/test_evidence_semantic_validation.py
-          tests/test_evidence_semantic_validation_regressions.py
-          tests/test_auditable_answer_models.py
-          tests/test_auditable_answer.py
-          tests/test_evidence_answer_api.py
-          tests/test_copilot_api.py
-          tests/test_copilot_persistence.py
-          tests/test_knowledge_graph_expansion.py
-          tests/test_knowledge_graph.py
-          tests/test_audit_report.py
-          tests/test_audit_query.py
-          tests/test_audit_presentation.py
-          tests/test_audit_revalidation.py
-          tests/test_operational_readiness.py
+        run: uv run pytest tests -q
 
   migration-integration:
     needs: test
@@ -252,7 +146,7 @@ jobs:
           docker logs intelos-surreal-migration
           exit 1
 
-      - name: Test migrations 24 through 31
+      - name: Test migrations 24 through 32
         run: uv run pytest tests/test_evidence_migration_integration.py -vv
 
       - name: Test hybrid evidence retrieval end to end
