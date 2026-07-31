@@ -1,5 +1,7 @@
 export type AuditPresentationMode = 'summary' | 'detailed' | 'audit'
 
+export type AuditRevalidationStatus = 'processing' | 'completed' | 'failed'
+
 export type AuditFreshnessStatus =
   | 'current'
   | 'possibly_outdated'
@@ -67,6 +69,63 @@ export interface AuditPresentationCounts {
   rejected_evidence: number
   conflicts: number
   trace_events: number
+}
+
+export interface AuditRevalidationRequest {
+  source_audit_id: string
+  idempotency_key: string
+  reason: string
+  evidence_ids: string[]
+  change_ids: string[]
+}
+
+export interface AuditRevalidationResult {
+  status: AuditRevalidationStatus
+  replayed: boolean
+  idempotency_key: string
+  source_audit_id: string
+  source_answer_id: string
+  result_audit_id: string
+  result_answer_id: string
+  reason: string
+  evidence_ids: string[]
+  change_ids: string[]
+  completed_at: string
+}
+
+export interface AuditHistoryItem {
+  audit_id: string
+  answer_id: string
+  conversation_id: string | null
+  turn_id: string | null
+  response_mode: string
+  question: string
+  answer: string
+  status: AuditPresentation['status']
+  overall_confidence: number
+  requires_human_review: boolean
+  freshness: AuditFreshness
+  generated_at: string
+}
+
+export interface AuditReportPage {
+  items: AuditHistoryItem[]
+  limit: number
+  offset: number
+  has_more: boolean
+  next_offset: number | null
+  scan_truncated: boolean
+}
+
+export interface AuditHistoryFilters {
+  answer_id?: string
+  conversation_id?: string
+  turn_id?: string
+  freshness_status?: AuditFreshnessStatus
+  generated_from?: string
+  generated_to?: string
+  limit?: number
+  offset?: number
 }
 
 export interface AuditPresentation {
