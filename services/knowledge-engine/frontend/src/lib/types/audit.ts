@@ -93,6 +93,13 @@ export interface AuditRevalidationResult {
   completed_at: string
 }
 
+/**
+ * One item of `/evidence/audit-reports`.
+ *
+ * The endpoint returns the full persisted AuditReport, not a summary: the
+ * fields below are the ones this UI reads, and the optional ones document the
+ * rest of the payload so callers do not assume it was stripped server-side.
+ */
 export interface AuditHistoryItem {
   audit_id: string
   answer_id: string
@@ -106,6 +113,16 @@ export interface AuditHistoryItem {
   requires_human_review: boolean
   freshness: AuditFreshness
   generated_at: string
+  claims?: AuditClaim[]
+  citations?: AuditCitation[]
+  selected_evidence_ids?: string[]
+  rejected_evidence_ids?: string[]
+  evidence_decisions?: AuditEvidenceDecision[]
+  conflicts?: AuditConflict[]
+  trace?: AuditTraceEvent[]
+  pipeline_version?: string
+  embedding_model?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface AuditReportPage {
