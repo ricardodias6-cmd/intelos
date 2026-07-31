@@ -50,7 +50,6 @@ from api.routers import (
 )
 from api.routers import commands as commands_router
 from open_notebook.database.async_migrate import AsyncMigrationManager
-from open_notebook.health import ReadinessResponse, check_readiness
 from open_notebook.exceptions import (
     AuthenticationError,
     ConfigurationError,
@@ -62,6 +61,7 @@ from open_notebook.exceptions import (
     RateLimitError,
     UnsupportedTypeException,
 )
+from open_notebook.health import ReadinessResponse, check_readiness
 from open_notebook.utils.encryption import get_secret_from_env
 
 
