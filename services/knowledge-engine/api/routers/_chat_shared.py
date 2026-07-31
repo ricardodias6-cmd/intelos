@@ -27,19 +27,30 @@ class ChatMessage(BaseModel):
     type: str = Field(..., description="Message type (human|ai)")
     content: str = Field(..., description="Message content")
     timestamp: Optional[str] = Field(None, description="Message timestamp")
-    answer_id: Optional[str] = Field(None, description="Auditable answer ID")
+    answer_id: Optional[str] = Field(
+        None,
+        description="Auditable answer ID",
+        exclude_if=lambda value: value is None,
+    )
     audit_report_id: Optional[str] = Field(
         None,
         description="Persisted audit report ID",
+        exclude_if=lambda value: value is None,
     )
     conversation_id: Optional[str] = Field(
         None,
         description="Audit conversation identifier",
+        exclude_if=lambda value: value is None,
     )
-    turn_id: Optional[str] = Field(None, description="Audit turn identifier")
+    turn_id: Optional[str] = Field(
+        None,
+        description="Audit turn identifier",
+        exclude_if=lambda value: value is None,
+    )
     audit_status: Optional[str] = Field(
         None,
         description="Auditable answer status",
+        exclude_if=lambda value: value is None,
     )
 
 
