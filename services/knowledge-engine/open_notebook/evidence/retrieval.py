@@ -45,6 +45,7 @@ _DEFAULT_MAX_BLOCKS = 5000
 
 class EvidenceSearchFilters(BaseModel):
     source_id: str | None = None
+    source_ids: list[str] | None = None
     version_hash: str | None = None
     pdf_page: int | None = Field(default=None, ge=1)
     section: str | None = None
@@ -53,6 +54,7 @@ class EvidenceSearchFilters(BaseModel):
     def has_any(self) -> bool:
         return bool(
             self.source_id
+            or self.source_ids is not None
             or self.version_hash
             or self.pdf_page is not None
             or self.section
@@ -177,6 +179,13 @@ async def _resolve_versions(
     if filters.source_id:
         clauses.append("source = $source")
         variables["source"] = ensure_record_id(filters.source_id)
+    if filters.source_ids is not None:
+        if not filters.source_ids:
+            return [], {}, {}
+        clauses.append("source IN $sources")
+        variables["sources"] = [
+            ensure_record_id(source_id) for source_id in filters.source_ids
+        ]
     if filters.version_hash:
         clauses.append("version_hash = $version_hash")
         variables["version_hash"] = filters.version_hash.lower()

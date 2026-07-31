@@ -8,9 +8,9 @@ O Intelos destina-se única e exclusivamente ao uso pessoal do proprietário do 
 
 ## Estado do projeto
 
-As Fases 0–9 estão implementadas, validadas e integradas na main. As subfases 10.1–10.5 da consolidação da auditoria e prontidão operacional também estão integradas. O sistema já dispõe de ingestão documental, recuperação híbrida, respostas auditáveis, geração condicionada à evidência, grafo persistente, manutenção de versões, Copilot conversacional, deteção de frescura da evidência e superfície de auditoria.
+As Fases 0–10 estão implementadas, validadas e integradas na main. O sistema dispõe de ingestão documental, recuperação híbrida limitada ao contexto selecionado, respostas auditáveis, geração condicionada à evidência, grafo persistente, manutenção de versões, Copilot conversacional, deteção de frescura, superfície de auditoria e revalidação controlada.
 
-A subfase em curso é a 10.6 — ligação Chat → Auditoria → Revalidação, com ligação automática do `answer_id`, abertura direta da auditoria, revalidação controlada e histórico por conversa. O contrato está definido em [ADR-0012](docs/decisions/ADR-0012-audit-surface-and-operational-readiness.md).
+A release inicial é privada, local e de utilizador único. Os procedimentos de instalação, backup, restauro, retenção, recuperação e release estão documentados em [services/knowledge-engine/README.md](services/knowledge-engine/README.md), [docs/OPERATIONS.md](docs/OPERATIONS.md) e [docs/RELEASE.md](docs/RELEASE.md). O contrato de auditoria está definido em [ADR-0012](docs/decisions/ADR-0012-audit-surface-and-operational-readiness.md).
 
 A roadmap canónica está em [docs/ROADMAP.md](docs/ROADMAP.md).
 

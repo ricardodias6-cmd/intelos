@@ -58,6 +58,7 @@ class AuditableAnswerRequest(BaseModel):
     candidate_limit: int = Field(default=250, ge=1, le=2000)
     minimum_score: float = Field(default=0.05, ge=0, le=1)
     source_id: str | None = None
+    source_ids: list[str] | None = Field(default=None, max_length=100)
     version_hash: str | None = None
     direct_threshold: float = Field(default=0.82, ge=0.6, le=0.98)
     partial_threshold: float = Field(default=0.58, ge=0.5, le=0.9)
@@ -208,6 +209,7 @@ async def _persist_answer_audit(
             "candidate_limit": request.candidate_limit,
             "minimum_score": request.minimum_score,
             "source_id": request.source_id,
+            "source_ids": request.source_ids,
             "version_hash": request.version_hash,
             "conversation_context": request.conversation_context,
             "clarification_required": answer.status == AuditableAnswerStatus.CLARIFICATION_REQUIRED,
@@ -650,6 +652,7 @@ async def build_auditable_answer(
         minimum_score=request.minimum_score,
         filters=EvidenceSearchFilters(
             source_id=request.source_id,
+            source_ids=request.source_ids,
             version_hash=request.version_hash,
         ),
         allow_legacy_fallback=False,
