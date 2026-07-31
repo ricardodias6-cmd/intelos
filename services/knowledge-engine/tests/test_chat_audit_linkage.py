@@ -38,6 +38,7 @@ def test_auditable_chat_graph_emits_answer_and_audit_ids(
         assert request.question == "Quem decide?"
         assert request.conversation_id == "chat_session:SESSION_001"
         assert request.turn_id == "TURN_CHAT_001"
+        assert request.source_ids == ["source:one"]
         return SimpleNamespace(
             answer_id="ANSWER_CHAT_001",
             audit_report_id="AUDIT_CHAT_001",
@@ -53,7 +54,10 @@ def test_auditable_chat_graph_emits_answer_and_audit_ids(
                 HumanMessage(content="Quem decide?"),
             ],
             "notebook": None,
-            "context": None,
+            "context": {
+                "sources": [{"id": "source:one", "title": "Documento"}],
+                "notes": [],
+            },
             "context_config": None,
             "model_override": None,
             "audit_enabled": True,
@@ -69,3 +73,35 @@ def test_auditable_chat_graph_emits_answer_and_audit_ids(
     assert message.content == "A entidade competente decide."
     assert message.additional_kwargs["audit_report_id"] == "AUDIT_CHAT_001"
     assert message.additional_kwargs["conversation_id"] == "chat_session:SESSION_001"
+
+
+def test_auditable_chat_scope_is_empty_when_no_source_is_selected(
+    monkeypatch,
+) -> None:
+    async def fake_build(request, *, model_id=None):
+        assert request.source_ids == []
+        return SimpleNamespace(
+            answer_id="ANSWER_CHAT_EMPTY_SCOPE",
+            audit_report_id="AUDIT_CHAT_EMPTY_SCOPE",
+            answer="Não foi encontrada evidência suficiente.",
+            status=SimpleNamespace(value="insufficient_evidence"),
+        )
+
+    monkeypatch.setattr(chat, "build_auditable_answer", fake_build)
+
+    result = chat.call_model_with_messages(
+        {
+            "messages": [HumanMessage(content="Pergunta?")],
+            "notebook": None,
+            "context": {"sources": [], "notes": []},
+            "context_config": None,
+            "model_override": None,
+            "audit_enabled": True,
+            "audit_conversation_id": "chat_session:SESSION_002",
+            "audit_turn_id": "TURN_CHAT_002",
+            "audit_response_mode": "detailed",
+        },
+        RunnableConfig(),
+    )
+
+    assert result["messages"].id == "ANSWER_CHAT_EMPTY_SCOPE"
