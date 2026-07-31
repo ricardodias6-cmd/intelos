@@ -15,6 +15,7 @@ from open_notebook.audit.persistence import (
     get_audit_report_by_id,
 )
 from open_notebook.database.repository import (
+    ensure_record_id,
     repo_query,
     repo_upsert,
 )
@@ -143,19 +144,47 @@ async def get_audit_revalidation(
     return AuditRevalidationRecord.model_validate(rows[0]) if rows else None
 
 
+def _record_data(record: AuditRevalidationRecord) -> dict[str, Any]:
+    data: dict[str, Any] = record.model_dump(mode="python")
+    data["created"] = record.requested_at
+    data["updated"] = record.completed_at or record.requested_at
+    return data
+
+
 async def persist_audit_revalidation(
     record: AuditRevalidationRecord,
 ) -> None:
     """Upsert one revalidation lifecycle record by deterministic key."""
 
-    record_id = _record_id(record.idempotency_key)
-    data: dict[str, Any] = record.model_dump(mode="python")
-    data["created"] = record.requested_at
-    data["updated"] = (
-        record.completed_at
-        or record.requested_at
+    await repo_upsert(
+        "audit_revalidation",
+        _record_id(record.idempotency_key),
+        _record_data(record),
     )
-    await repo_upsert("audit_revalidation", record_id, data)
+
+
+async def claim_audit_revalidation(
+    record: AuditRevalidationRecord,
+) -> None:
+    """Create the lifecycle record, failing when the key is already claimed.
+
+    CREATE (rather than UPSERT) makes the idempotency key a real lock: two
+    concurrent requests carrying the same key cannot both start the pipeline,
+    because the second CREATE hits the existing record and raises.
+    """
+
+    try:
+        await repo_query(
+            "CREATE $record CONTENT $data;",
+            {
+                "record": ensure_record_id(_record_id(record.idempotency_key)),
+                "data": _record_data(record),
+            },
+        )
+    except Exception as exc:
+        raise InvalidInputError(
+            "revalidation is already registered for this idempotency key"
+        ) from exc
 
 
 def _result_from_record(
@@ -286,7 +315,7 @@ async def revalidate_audit_report(
         change_ids=request.change_ids,
         status=AuditRevalidationStatus.PROCESSING,
     )
-    await persist_audit_revalidation(processing)
+    await claim_audit_revalidation(processing)
     record_operational_event(
         AuditOperationalEvent.AUDIT_REVALIDATION_STARTED
     )

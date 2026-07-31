@@ -7,6 +7,7 @@ import time
 from collections.abc import Sequence
 from uuid import uuid4
 
+from loguru import logger
 from pydantic import BaseModel, Field, model_validator
 
 from open_notebook.ai.provision import provision_langchain_model
@@ -56,6 +57,7 @@ class AuditableAnswerRequest(BaseModel):
     response_mode: str = Field(default="default", min_length=1, max_length=20)
     max_evidence: int = Field(default=8, ge=1, le=20)
     candidate_limit: int = Field(default=250, ge=1, le=2000)
+    graph_expansion_slots: int = Field(default=2, ge=0, le=10)
     minimum_score: float = Field(default=0.05, ge=0, le=1)
     source_id: str | None = None
     source_ids: list[str] | None = Field(default=None, max_length=100)
@@ -337,6 +339,21 @@ def _validated_claim(
     qualification = candidate.qualification
     requires_review = result.requires_human_review
 
+    # A quote is only a quote when it appears literally in the evidence.
+    # Semantic similarity alone can never promote it to a presented fact.
+    if candidate.kind == ClaimKind.QUOTE and status in {
+        SupportStatus.DIRECT,
+        SupportStatus.PARTIAL,
+    }:
+        if not any(
+            finding.literal_quote_match for finding in result.evidence_findings
+        ):
+            status = SupportStatus.UNSUPPORTED
+            qualification = (
+                "A citação não corresponde literalmente ao texto da evidência."
+            )
+            requires_review = True
+
     if status == SupportStatus.DIRECT:
         if requires_review and not qualification:
             qualification = "A classificação requer revisão humana."
@@ -561,12 +578,34 @@ async def _validate_candidate_claims(
             )
             continue
 
-        result = await validate_claim_semantics(
-            claim=candidate_claim.text,
-            evidence_ids=candidate_ids,
-            direct_threshold=request.direct_threshold,
-            partial_threshold=request.partial_threshold,
-        )
+        try:
+            result = await validate_claim_semantics(
+                claim=candidate_claim.text,
+                evidence_ids=candidate_ids,
+                direct_threshold=request.direct_threshold,
+                partial_threshold=request.partial_threshold,
+            )
+        except InvalidInputError as exc:
+            # One unusable Evidence Block must not discard the whole answer:
+            # the claim is dropped from the factual response and the reason is
+            # kept in the audit trail.
+            logger.warning("Claim validation rejected the cited evidence: {}", exc)
+            reason = (
+                "A evidência citada não pôde ser validada e a afirmação "
+                f"foi removida da resposta factual: {exc}"
+            )
+            claims.append(
+                _invalid_claim(candidate_claim, qualification=reason)
+            )
+            rejected.append(
+                RejectedCandidateClaim(
+                    text=candidate_claim.text,
+                    evidence_ids=candidate_ids,
+                    reason=reason[:2000],
+                )
+            )
+            continue
+
         embedding_models.add(result.embedding_model)
         referenced_ids.update(candidate_ids)
         validated_claim = _validated_claim(
@@ -644,10 +683,20 @@ async def build_auditable_answer(
             model_id=model_id,
         )
 
+    # Graph expansion can only add evidence when retrieval leaves room inside
+    # max_evidence, so part of the budget is reserved for it up front instead
+    # of being silently truncated away afterwards.
+    graph_slots = (
+        min(request.graph_expansion_slots, request.max_evidence - 1)
+        if request.include_knowledge_graph
+        else 0
+    )
+    retrieval_limit = max(1, request.max_evidence - max(0, graph_slots))
+
     retrieval_started = time.perf_counter()
     retrieval = await retrieve_evidence(
         query=request.question,
-        limit=request.max_evidence,
+        limit=retrieval_limit,
         candidate_limit=request.candidate_limit,
         minimum_score=request.minimum_score,
         filters=EvidenceSearchFilters(
@@ -824,10 +873,16 @@ async def build_auditable_answer(
         claim.requires_human_review for claim in claims
     )
 
+    # Cite only what the returned claims actually reference. `referenced_ids`
+    # also accumulates evidence from discarded regeneration attempts, which
+    # would otherwise show up as citations no claim stands on.
+    cited_evidence_ids = {
+        evidence_id for claim in claims for evidence_id in claim.evidence_ids
+    }
     citations = [
         _citation_from_hit(hit)
         for hit in hits
-        if hit.evidence_id in referenced_ids
+        if hit.evidence_id in cited_evidence_ids
     ]
     timings["total"] = round(
         (time.perf_counter() - started_at) * 1000

@@ -88,6 +88,13 @@ async def test_revalidation_is_idempotent_and_preserves_source(
     async def fake_persist(record: Any) -> None:
         records[record.idempotency_key] = record
 
+    async def fake_claim(record: Any) -> None:
+        if record.idempotency_key in records:
+            raise InvalidInputError(
+                "revalidation is already registered for this idempotency key"
+            )
+        records[record.idempotency_key] = record
+
     async def fake_build(request: Any, *, model_id: str | None = None) -> Any:
         nonlocal build_calls
         build_calls += 1
@@ -108,6 +115,10 @@ async def test_revalidation_is_idempotent_and_preserves_source(
     monkeypatch.setattr(
         "open_notebook.audit.revalidation.persist_audit_revalidation",
         fake_persist,
+    )
+    monkeypatch.setattr(
+        "open_notebook.audit.revalidation.claim_audit_revalidation",
+        fake_claim,
     )
     monkeypatch.setattr(
         "open_notebook.evidence.auditable_answer.build_auditable_answer",

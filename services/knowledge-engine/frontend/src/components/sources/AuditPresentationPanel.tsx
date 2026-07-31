@@ -122,11 +122,16 @@ export function AuditPresentationPanel({
     setRevalidationError(false)
 
     try {
-      const affectedEvidence = new Set(
-        presentation.freshness.affected_evidence_ids,
-      )
+      // Only evidence the audit itself decided on can be revalidated: the
+      // backend rejects IDs outside the source report.
+      const auditedEvidence = new Set([
+        ...presentation.evidence_decisions.map(
+          (decision) => decision.evidence_id,
+        ),
+        ...presentation.selected_evidence_ids,
+      ])
       const evidenceIds = presentation.freshness.affected_evidence_ids.filter(
-        (evidenceId) => affectedEvidence.has(evidenceId),
+        (evidenceId) => auditedEvidence.has(evidenceId),
       )
 
       const result = await auditApi.revalidate(presentation.answer_id, {
@@ -520,7 +525,6 @@ function AuditHistoryPanel({
   const [items, setItems] = useState<AuditHistoryItem[]>([])
   const [turnId, setTurnId] = useState('')
   const [freshness, setFreshness] = useState<AuditFreshnessStatus | ''>('')
-  const [offset, setOffset] = useState(0)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
@@ -542,8 +546,9 @@ function AuditHistoryPanel({
         limit: 20,
         offset: next,
       })
-      setItems(page.items)
-      setOffset(page.offset)
+      // Page 0 replaces the list; later pages append, so "Load more" keeps
+      // what is already on screen instead of swapping it out.
+      setItems((current) => (next === 0 ? page.items : [...current, ...page.items]))
       setNextOffset(page.next_offset)
     } catch {
       setHasError(true)
@@ -553,7 +558,6 @@ function AuditHistoryPanel({
   }, [conversationId, freshness, turnId])
 
   useEffect(() => {
-    setOffset(0)
     void loadHistory(0)
   }, [conversationId, loadHistory])
 

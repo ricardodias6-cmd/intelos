@@ -1,0 +1,22 @@
+-- Migration 32: durable audit revalidation records
+
+DEFINE TABLE IF NOT EXISTS audit_revalidation SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS idempotency_key ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS request_fingerprint ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS source_audit_id ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS source_answer_id ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS reason ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS evidence_ids ON TABLE audit_revalidation TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS change_ids ON TABLE audit_revalidation TYPE array<string>;
+DEFINE FIELD IF NOT EXISTS status ON TABLE audit_revalidation TYPE string;
+DEFINE FIELD IF NOT EXISTS result_audit_id ON TABLE audit_revalidation TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS result_answer_id ON TABLE audit_revalidation TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS requested_at ON TABLE audit_revalidation TYPE datetime;
+DEFINE FIELD IF NOT EXISTS completed_at ON TABLE audit_revalidation TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS created ON audit_revalidation DEFAULT time::now() VALUE $before OR time::now();
+DEFINE FIELD IF NOT EXISTS updated ON audit_revalidation DEFAULT time::now() VALUE time::now();
+
+DEFINE INDEX IF NOT EXISTS idx_audit_revalidation_key
+ON TABLE audit_revalidation FIELDS idempotency_key UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_audit_revalidation_source
+ON TABLE audit_revalidation FIELDS source_audit_id;

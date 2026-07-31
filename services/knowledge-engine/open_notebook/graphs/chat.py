@@ -61,16 +61,23 @@ def call_model_with_messages(state: ThreadState, config: RunnableConfig) -> dict
                 new_loop.close()
                 asyncio.set_event_loop(None)
 
+        # Detect the running loop before provisioning: a RuntimeError coming
+        # out of provisioning is a real failure, not a signal that there is no
+        # event loop to run inside.
         try:
-            # Try to get the current event loop
             asyncio.get_running_loop()
+            inside_event_loop = True
+        except RuntimeError:
+            inside_event_loop = False
+
+        if inside_event_loop:
             # If we're in an event loop, run in a thread with a new loop
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_in_new_loop)
                 model = future.result()
-        except RuntimeError:
+        else:
             # No event loop running, safe to use asyncio.run()
             model = asyncio.run(
                 provision_langchain_model(
@@ -128,6 +135,27 @@ def _call_auditable_model(state: ThreadState) -> dict:
             "Auditable chat requires conversation and turn identifiers"
         )
 
+    source_ids = _selected_source_ids(state.get("context"))
+    if not source_ids:
+        # Retrieval is scoped to the notebook context on purpose. Without a
+        # source in context there is nothing to answer from, and saying so is
+        # clearer than an "insufficient evidence" answer that looks like the
+        # documents were searched and came up empty.
+        return {
+            "messages": AIMessage(
+                content=(
+                    "Não há nenhuma fonte no contexto deste notebook, por isso "
+                    "não posso produzir uma resposta auditável. Adiciona pelo "
+                    "menos uma fonte ao contexto e volta a perguntar."
+                ),
+                additional_kwargs={
+                    "conversation_id": conversation_id,
+                    "turn_id": turn_id,
+                    "audit_status": "no_source_in_context",
+                },
+            )
+        }
+
     conversation_context = [
         str(message.content)
         for message in state.get("messages", [])[-7:-1]
@@ -138,7 +166,7 @@ def _call_auditable_model(state: ThreadState) -> dict:
         conversation_id=conversation_id,
         turn_id=turn_id,
         response_mode=response_mode,
-        source_ids=_selected_source_ids(state.get("context")),
+        source_ids=source_ids,
         conversation_context=conversation_context,
     )
 
@@ -151,13 +179,21 @@ def _call_auditable_model(state: ThreadState) -> dict:
             loop.close()
             asyncio.set_event_loop(None)
 
+    # Decide the execution strategy before running anything: a RuntimeError
+    # raised by the pipeline itself must not be mistaken for "no event loop"
+    # and retried with asyncio.run() inside a running loop.
     try:
         asyncio.get_running_loop()
+        inside_event_loop = True
+    except RuntimeError:
+        inside_event_loop = False
+
+    if inside_event_loop:
         import concurrent.futures
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             answer = executor.submit(run_answer).result()
-    except RuntimeError:
+    else:
         answer = asyncio.run(build_auditable_answer(request))
 
     if not answer.answer_id or not answer.audit_report_id:

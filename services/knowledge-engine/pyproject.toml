@@ -15,7 +15,10 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
-    "pydantic>=2.9.2",
+    # >=2.12 is required for Field(exclude_if=...), used by the chat audit
+    # fields in api/routers/_chat_shared.py. Older 2.x silently ignores the
+    # keyword and would serialize those fields as null.
+    "pydantic>=2.12",
     "loguru>=0.7.2",
     "langchain>=1.3.9,<2",
     "langchain-core>=1.4.6,<2",

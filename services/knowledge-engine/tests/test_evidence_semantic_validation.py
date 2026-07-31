@@ -264,3 +264,99 @@ async def test_unresolved_ids_are_rejected(monkeypatch: pytest.MonkeyPatch) -> N
             claim="A medida é autorizada pela entidade competente.",
             evidence_ids=["EV_ONE", "EV_MISSING"],
         )
+
+
+@pytest.mark.asyncio
+async def test_tampered_evidence_cannot_support_a_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stored text that no longer matches its extraction hash is not usable."""
+
+    await _install_model(monkeypatch)
+    text = "A autorização deve ser decidida em 24 horas."
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        row = _row("EV_ONE", text)
+        row["text_hash"] = "0" * 64
+        return [row]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [1.0, 0.0]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(
+        semantic_validation,
+        "generate_embeddings",
+        fake_generate_embeddings,
+    )
+
+    result = await validate_claim_semantics(claim=text, evidence_ids=["EV_ONE"])
+
+    assert result.recommended_support_status == SupportStatus.UNSUPPORTED
+    assert result.confidence == 0
+    assert result.requires_human_review is True
+    assert result.evidence_findings[0].integrity_failed is True
+
+
+@pytest.mark.asyncio
+async def test_matching_text_hash_still_supports_a_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+    text = "A autorização deve ser decidida em 24 horas."
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        import hashlib
+
+        row = _row("EV_ONE", text)
+        row["text_hash"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        return [row]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [1.0, 0.0]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(
+        semantic_validation,
+        "generate_embeddings",
+        fake_generate_embeddings,
+    )
+
+    result = await validate_claim_semantics(claim=text, evidence_ids=["EV_ONE"])
+
+    assert result.recommended_support_status == SupportStatus.DIRECT
+    assert result.evidence_findings[0].integrity_failed is False
+    assert result.evidence_findings[0].literal_quote_match is True
+
+
+@pytest.mark.asyncio
+async def test_literal_quote_match_requires_the_evidence_wording(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _install_model(monkeypatch)
+
+    async def fake_repo_query(
+        query: str, variables: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return [_row("EV_ONE", "A autorização deve ser decidida em 24 horas.")]
+
+    async def fake_generate_embeddings(texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0], [1.0, 0.0]]
+
+    monkeypatch.setattr(semantic_validation, "repo_query", fake_repo_query)
+    monkeypatch.setattr(
+        semantic_validation,
+        "generate_embeddings",
+        fake_generate_embeddings,
+    )
+
+    result = await validate_claim_semantics(
+        claim="A autorização é decidida no prazo de um dia.",
+        evidence_ids=["EV_ONE"],
+    )
+
+    assert result.evidence_findings[0].literal_quote_match is False

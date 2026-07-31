@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.notebook import vector_search as legacy_vector_search
+from open_notebook.evidence.models import VerificationStatus
+from open_notebook.evidence.versioning import DocumentVersionStatus
 from open_notebook.exceptions import InvalidInputError
 from open_notebook.utils.embedding import generate_embedding, generate_embeddings
 
@@ -171,6 +173,32 @@ def _effective_text_hash(row: dict[str, Any]) -> str:
     return hashlib.sha256(_effective_text(row).encode("utf-8")).hexdigest()
 
 
+def _version_status(row: dict[str, Any]) -> str:
+    """Return the lifecycle status, treating pre-migration rows as current."""
+
+    value = row.get("status")
+    if value is None or not str(value).strip():
+        return DocumentVersionStatus.CURRENT.value
+    return str(value).strip().lower()
+
+
+def _is_retrievable_version(row: dict[str, Any], *, pinned: bool) -> bool:
+    """Keep revoked evidence out of retrieval and superseded evidence unpinned.
+
+    A revoked version can never support an answer. A superseded version is
+    only reachable when the caller pinned an explicit version hash, so a
+    source whose current version was revoked yields no evidence at all
+    instead of silently falling back to an older document.
+    """
+
+    status = _version_status(row)
+    if status == DocumentVersionStatus.REVOKED.value:
+        return False
+    if status == DocumentVersionStatus.CURRENT.value:
+        return True
+    return pinned and status == DocumentVersionStatus.SUPERSEDED.value
+
+
 async def _resolve_versions(
     filters: EvidenceSearchFilters,
 ) -> tuple[list[str], dict[str, str], dict[str, str]]:
@@ -196,8 +224,16 @@ async def _resolve_versions(
         variables,
     )
 
+    pinned = bool(filters.version_hash)
     selected: dict[str, dict[str, Any]] = {}
     for row in rows:
+        if not _is_retrievable_version(row, pinned=pinned):
+            logger.debug(
+                "Skipping {} document version {}",
+                _version_status(row),
+                row.get("id"),
+            )
+            continue
         source_id = str(row["source"])
         if source_id not in selected:
             selected[source_id] = row
@@ -217,9 +253,15 @@ async def _resolve_versions(
 def _candidate_clauses(
     version_ids: list[str], filters: EvidenceSearchFilters
 ) -> tuple[list[str], dict[str, Any]]:
-    clauses = ["document_version IN $versions"]
+    # Rejected evidence can never support an answer, so it is excluded before
+    # ranking instead of failing semantic validation later in the pipeline.
+    clauses = [
+        "document_version IN $versions",
+        "verification_status != $rejected_status",
+    ]
     variables: dict[str, Any] = {
-        "versions": [ensure_record_id(version_id) for version_id in version_ids]
+        "versions": [ensure_record_id(version_id) for version_id in version_ids],
+        "rejected_status": VerificationStatus.REJECTED.value,
     }
     if filters.pdf_page is not None:
         clauses.append("pdf_page = $pdf_page")
@@ -257,6 +299,7 @@ async def _load_candidates(
     except Exception as exc:
         logger.warning("Indexed lexical candidate search unavailable: {}", exc)
 
+    indexed_rows = len(rows)
     seen = {str(row.get("id")) for row in rows}
     remaining = max(0, candidate_limit - len(rows))
     if remaining:
@@ -268,6 +311,15 @@ async def _load_candidates(
             + " ORDER BY updated DESC, evidence_id ASC LIMIT $remaining",
             bounded_variables,
         )
+        # The bounded scan orders by recency, not relevance: when it fills the
+        # candidate budget, relevant blocks may never reach the ranking stage.
+        if not indexed_rows and len(bounded_rows) >= remaining:
+            logger.warning(
+                "Evidence candidates came from a recency-ordered scan that hit the "
+                "candidate limit ({}); relevant blocks may have been left out. "
+                "Check that the evidence_block full-text index exists.",
+                candidate_limit,
+            )
         rows.extend(
             row for row in bounded_rows if str(row.get("id")) not in seen
         )
@@ -352,6 +404,11 @@ async def retrieve_evidence(
     titles = await _source_titles({str(row["source"]) for row in rows})
     hits: list[EvidenceSearchHit] = []
     for row in rows:
+        if str(row.get("verification_status") or "") == VerificationStatus.REJECTED.value:
+            logger.debug(
+                "Skipping rejected evidence block {}", row.get("evidence_id")
+            )
+            continue
         text = _effective_text(row)
         lexical = lexical_score(query, text)
         semantic = (

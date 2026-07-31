@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import html
 import re
+import unicodedata
 from collections.abc import Sequence
 from typing import Any
 
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from open_notebook.database.repository import repo_query
@@ -15,6 +19,8 @@ from open_notebook.exceptions import InvalidInputError
 from open_notebook.utils.embedding import generate_embeddings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
 _NUMBER_RE = re.compile(r"(?<!\w)[+-]?\d+(?:[.,]\d+)?(?!\w)")
 _SEGMENT_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
 _NEGATION_TOKENS = {
@@ -38,10 +44,21 @@ class SemanticEvidenceFinding(BaseModel):
     lexical_coverage: float = Field(ge=0, le=1)
     numeric_conflict: bool = False
     polarity_conflict: bool = False
+    integrity_failed: bool = False
+    literal_quote_match: bool = False
     reasons: list[str] = Field(default_factory=list)
 
 
 class SemanticValidationResult(BaseModel):
+    """Recommended support status for one claim.
+
+    `confidence` is read against `recommended_support_status`: for DIRECT and
+    PARTIAL it is the strength of the best supporting evidence, while for
+    UNSUPPORTED it is the confidence in the *absence* of support. Callers that
+    present claims must not use it as a presentation score without checking the
+    status first.
+    """
+
     claim: str
     recommended_support_status: SupportStatus
     confidence: float = Field(ge=0, le=1)
@@ -91,6 +108,42 @@ def _record_identifier(value: Any) -> str:
 
 def _bounded_similarity(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def _text_integrity_failed(row: dict[str, Any]) -> bool:
+    """Detect evidence whose stored text no longer matches its extraction hash.
+
+    A missing hash cannot be checked, so it is logged and treated as
+    unverifiable rather than as tampering: only a real mismatch blocks the
+    evidence from supporting a claim.
+    """
+
+    stored_hash = str(row.get("text_hash") or "").strip().lower()
+    raw_text = row.get("raw_text")
+    if not stored_hash or raw_text is None:
+        logger.warning(
+            "Evidence block {} has no verifiable text hash",
+            row.get("evidence_id"),
+        )
+        return False
+    calculated = hashlib.sha256(str(raw_text).encode("utf-8")).hexdigest()
+    return calculated != stored_hash
+
+
+def _literal_quote_match(claim: str, evidence_text: str) -> bool:
+    """Check that a quoted claim appears literally in the evidence text."""
+
+    normalized_claim = _normalized_literal(claim)
+    if not normalized_claim:
+        return False
+    return normalized_claim in _normalized_literal(evidence_text)
+
+
+def _normalized_literal(value: str) -> str:
+    value = html.unescape(value)
+    value = _HTML_TAG_RE.sub(" ", value)
+    value = unicodedata.normalize("NFKC", value)
+    return _WHITESPACE_RE.sub(" ", value).strip().casefold()
 
 
 async def validate_claim_semantics(
@@ -185,7 +238,13 @@ async def validate_claim_semantics(
             and segment_coverage >= 0.55
             and claim_negation != _has_negation(relevant_segment)
         )
+        integrity_failed = _text_integrity_failed(row)
+        literal_quote_match = _literal_quote_match(normalized_claim, text)
         reasons: list[str] = []
+        if integrity_failed:
+            reasons.append(
+                "O texto da evidência não corresponde ao hash da extração."
+            )
         if numeric_conflict:
             reasons.append("Os valores numéricos relevantes não coincidem.")
         if polarity_conflict:
@@ -203,25 +262,43 @@ async def validate_claim_semantics(
                 lexical_coverage=round(segment_coverage, 6),
                 numeric_conflict=numeric_conflict,
                 polarity_conflict=polarity_conflict,
+                integrity_failed=integrity_failed,
+                literal_quote_match=literal_quote_match,
                 reasons=reasons,
             )
         )
 
+    # Evidence that failed the integrity check can neither support nor
+    # contradict a claim: its stored text is no longer the extracted text.
+    trusted = [finding for finding in findings if not finding.integrity_failed]
+    tampered = [finding for finding in findings if finding.integrity_failed]
     non_conflicting = [
         finding
-        for finding in findings
+        for finding in trusted
         if not finding.numeric_conflict and not finding.polarity_conflict
     ]
     conflicting = [
         finding
-        for finding in findings
+        for finding in trusted
         if finding.numeric_conflict or finding.polarity_conflict
     ]
     best_support = max((finding.semantic_score for finding in non_conflicting), default=0.0)
     best_conflict = max((finding.semantic_score for finding in conflicting), default=0.0)
     reasons: list[str] = []
 
-    if conflicting and best_support >= direct_threshold:
+    if tampered:
+        reasons.append(
+            "Evidência com integridade não confirmada foi excluída da avaliação."
+        )
+
+    if not trusted:
+        status = SupportStatus.UNSUPPORTED
+        confidence = 0.0
+        human_review = True
+        reasons.append(
+            "Nenhuma evidência com integridade confirmada suporta esta afirmação."
+        )
+    elif conflicting and best_support >= direct_threshold:
         status = SupportStatus.PARTIAL
         confidence = max(best_support, best_conflict)
         human_review = True
@@ -239,7 +316,10 @@ async def validate_claim_semantics(
     elif best_support >= direct_threshold:
         status = SupportStatus.DIRECT
         confidence = best_support
-        human_review = best_support < direct_threshold + 0.05
+        # Support that only just clears the threshold still needs review. The
+        # margin is capped so a perfect match never requires review just
+        # because the configured threshold is close to 1.
+        human_review = best_support < min(direct_threshold + 0.05, 1.0)
         reasons.append("A melhor evidência ultrapassa o limiar de suporte direto.")
     elif best_support >= partial_threshold:
         status = SupportStatus.PARTIAL

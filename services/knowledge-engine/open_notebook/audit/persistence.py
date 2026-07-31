@@ -165,24 +165,33 @@ async def list_audit_reports(query: AuditReportQuery) -> AuditReportPage:
     statement += " ORDER BY generated_at DESC, audit_id DESC LIMIT $scan_limit"
 
     rows = await repo_query(statement, variables)
-    reports: list[AuditReport] = []
-    for row in rows:
-        report = await _refresh_audit_report(row)
-        if (
-            query.freshness_status is None
-            or report.freshness.status == query.freshness_status
-        ):
-            reports.append(report)
-
-    page_end = query.offset + query.limit
     scan_truncated = len(rows) >= _MAX_AUDIT_QUERY_SCAN
-    has_more = len(reports) > page_end or scan_truncated
-    next_offset = page_end if has_more and not scan_truncated else None
+    page_end = query.offset + query.limit
+
+    if query.freshness_status is None:
+        # Freshness is evaluated live and costs queries per report, so without
+        # a freshness filter only the requested page is refreshed.
+        window = rows[query.offset:page_end]
+        items = [await _refresh_audit_report(row) for row in window]
+        more_after_page = len(rows) > page_end
+    else:
+        reports: list[AuditReport] = []
+        for row in rows:
+            report = await _refresh_audit_report(row)
+            if report.freshness.status == query.freshness_status:
+                reports.append(report)
+        items = reports[query.offset:page_end]
+        more_after_page = len(reports) > page_end
+
+    # `next_offset` is only meaningful when the current scan actually holds
+    # another page; `scan_truncated` separately tells the caller that the
+    # result set was cut off and needs a narrower filter.
+    next_offset = page_end if more_after_page and page_end <= 950 else None
     return AuditReportPage(
-        items=reports[query.offset:page_end],
+        items=items,
         limit=query.limit,
         offset=query.offset,
-        has_more=has_more,
+        has_more=more_after_page or scan_truncated,
         next_offset=next_offset,
         scan_truncated=scan_truncated,
     )
