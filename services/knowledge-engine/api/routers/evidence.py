@@ -10,9 +10,11 @@ from open_notebook.audit import (
     AuditReportQuery,
     AuditRevalidationRequest,
     AuditRevalidationResult,
+    AuditOperationalSnapshot,
     get_audit_freshness,
     get_audit_presentation,
     get_audit_report,
+    get_operational_snapshot,
     list_audit_reports,
     revalidate_audit_report,
 )
@@ -191,6 +193,16 @@ async def revalidate_answer_audit(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InvalidInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/evidence/operational",
+    response_model=AuditOperationalSnapshot,
+)
+async def get_evidence_operational() -> AuditOperationalSnapshot:
+    """Return safe process-local operational counters."""
+
+    return get_operational_snapshot()
 
 
 @router.get(
