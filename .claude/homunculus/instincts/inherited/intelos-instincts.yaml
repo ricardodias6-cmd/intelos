@@ -1,0 +1,563 @@
+# Instincts generated from https://github.com/ricardodias6-cmd/intelos
+# Generated: 2026-07-29T19:38:46.096Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: intelos-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, ci, test, fix, docs
+
+## Evidence
+
+- 14 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs: define phase 4 auditable answer pipeline, feat: add phase 4 auditable answer contract
+
+---
+id: intelos-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Commit Length
+
+## Action
+
+Keep commit messages concise (~41 characters)
+
+## Evidence
+
+- Average commit message length: 41 chars
+- Based on 14 commits
+
+---
+id: intelos-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: intelos-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: intelos-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: intelos-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: intelos-workflow-feature-development-with-api-and-tests
+trigger: "when doing feature development with api and tests"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Workflow Feature Development With Api And Tests
+
+## Action
+
+Follow the feature-development-with-api-and-tests workflow:
+1. Define or update the feature contract/model (e.g., in evidence/auditable_models.py)
+2. Implement the feature logic (e.g., in evidence/auditable_answer.py)
+3. Expose the feature via an API endpoint (e.g., in api/routers/evidence.py)
+4. Register the new API route (e.g., in api/main.py)
+5. Write or update tests for the model/logic (e.g., in tests/test_auditable_answer_models.py, tests/test_auditable_answer.py)
+6. Write or update tests for the API endpoint (e.g., in tests/test_evidence_answer_api.py)
+7. Update CI workflows to include new tests (e.g., .github/workflows/evidence-core.yml)
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: services/knowledge-engine/open_notebook/evidence/*.py, services/knowledge-engine/api/routers/*.py, services/knowledge-engine/api/main.py
+
+---
+id: intelos-workflow-ci-workflow-update-for-feature-or-test
+trigger: "when doing ci workflow update for feature or test"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/ricardodias6-cmd/intelos
+---
+
+# Intelos Workflow Ci Workflow Update For Feature Or Test
+
+## Action
+
+Follow the ci-workflow-update-for-feature-or-test workflow:
+1. Modify CI workflow file to include new tests or validation steps (e.g., evidence-core.yml)
+2. Trigger CI validation for new API or feature
+3. Ensure CI runs on pull requests
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: .github/workflows/evidence-core.yml
+
+---
+id: intelos-instinct-filename-snake-case
+trigger: "When creating or renaming a file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Filename Snake Case
+
+## Action
+
+Use snake_case for file names
+
+## Evidence
+
+- Pattern in namingConventions.files: snake_case
+
+---
+id: intelos-instinct-function-camel-case
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Function Camel Case
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: intelos-instinct-class-pascal-case
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Class Pascal Case
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: intelos-instinct-constant-screaming-snake-case
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Constant Screaming Snake Case
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: intelos-instinct-relative-imports
+trigger: "When importing modules within the package"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Relative Imports
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: intelos-instinct-named-exports
+trigger: "When exporting functions or classes from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: intelos-instinct-test-file-pattern
+trigger: "When creating a new test file"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Test File Pattern
+
+## Action
+
+Name the file using the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+
+---
+id: intelos-instinct-unit-test-type
+trigger: "When writing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Unit Test Type
+
+## Action
+
+Write unit tests
+
+## Evidence
+
+- Pattern in testing.testTypes: unit
+
+---
+id: intelos-instinct-commit-conventional-format
+trigger: "When making a git commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Commit Conventional Format
+
+## Action
+
+Format the commit message as <type>: <description> using one of the prefixes: feat, ci, test, fix, docs
+
+## Evidence
+
+- Pattern in commits.type: conventional
+- Examples: 'feat: add phase 4 auditable answer contract', 'docs: define phase 4 auditable answer pipeline'
+
+---
+id: intelos-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Commit Length
+
+## Action
+
+Keep the commit message around 41 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength: 41
+
+---
+id: intelos-instinct-feature-dev-contract-first
+trigger: "When starting a new backend feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Contract First
+
+## Action
+
+Define or update the feature contract/model before implementing logic
+
+## Evidence
+
+- Workflow step: 'Define or update the feature contract/model (e.g., in evidence/auditable_models.py)'
+- Seen in commit: 'feat: add phase 4 auditable answer contract'
+
+---
+id: intelos-instinct-feature-dev-logic-after-contract
+trigger: "When the feature contract/model is defined or updated"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Logic After Contract
+
+## Action
+
+Implement the feature logic in the corresponding module
+
+## Evidence
+
+- Workflow step: 'Implement the feature logic (e.g., in evidence/auditable_answer.py)'
+- Seen in commit: 'feat: implement auditable answer orchestrator'
+
+---
+id: intelos-instinct-feature-dev-expose-api
+trigger: "When feature logic is implemented"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Expose Api
+
+## Action
+
+Expose the feature via an API endpoint
+
+## Evidence
+
+- Workflow step: 'Expose the feature via an API endpoint (e.g., in api/routers/evidence.py)'
+
+---
+id: intelos-instinct-feature-dev-register-route
+trigger: "When a new API endpoint is added"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Register Route
+
+## Action
+
+Register the new API route in the main API file
+
+## Evidence
+
+- Workflow step: 'Register the new API route (e.g., in api/main.py)'
+
+---
+id: intelos-instinct-feature-dev-write-model-tests
+trigger: "When a new model or logic is implemented"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Write Model Tests
+
+## Action
+
+Write or update tests for the model/logic
+
+## Evidence
+
+- Workflow step: 'Write or update tests for the model/logic (e.g., in tests/test_auditable_answer_models.py, tests/test_auditable_answer.py)'
+
+---
+id: intelos-instinct-feature-dev-write-api-tests
+trigger: "When a new API endpoint is exposed"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Write Api Tests
+
+## Action
+
+Write or update tests for the API endpoint
+
+## Evidence
+
+- Workflow step: 'Write or update tests for the API endpoint (e.g., in tests/test_evidence_answer_api.py)'
+
+---
+id: intelos-instinct-feature-dev-update-ci
+trigger: "When new tests are added or updated"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Feature Dev Update Ci
+
+## Action
+
+Update CI workflows to include new tests
+
+## Evidence
+
+- Workflow step: 'Update CI workflows to include new tests (e.g., .github/workflows/evidence-core.yml)'
+
+---
+id: intelos-instinct-ci-update-on-feature-or-test
+trigger: "When a new feature or test is added"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Ci Update On Feature Or Test
+
+## Action
+
+Modify CI workflow file to include new tests or validation steps
+
+## Evidence
+
+- Workflow: ci-workflow-update-for-feature-or-test
+- Commit: 'ci: run phase 4 auditable answer tests'
+
+---
+id: intelos-instinct-ci-trigger-validation
+trigger: "When CI workflow is updated"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Ci Trigger Validation
+
+## Action
+
+Trigger CI validation for new API or feature
+
+## Evidence
+
+- Workflow step: 'Trigger CI validation for new API or feature'
+
+---
+id: intelos-instinct-ci-ensure-pr
+trigger: "When modifying CI workflows"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: ricardodias6-cmd/intelos
+---
+
+# Intelos Instinct Ci Ensure Pr
+
+## Action
+
+Ensure CI runs on pull requests
+
+## Evidence
+
+- Workflow step: 'Ensure CI runs on pull requests'
+
